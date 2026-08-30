@@ -7,6 +7,9 @@ Two interactive, self-contained explainers for learning security concepts visual
 | [`trust-map.html`](trust-map.html) | **The Trust Map** — a radial concept map of network security |
 | [`upload-anatomy.html`](upload-anatomy.html) | **Anatomy of an Upload** — a system-design map of a Google Drive upload |
 | [`index.html`](index.html) | Landing page linking to both |
+| [`reactflow-version/`](reactflow-version/) | The upload map rebuilt with **React Flow + ELK auto-layout** — needs Node, see its own [README](reactflow-version/README.md) |
+
+The three HTML files at the root are dependency-free and open by double-click. The `reactflow-version/` folder is a separate Vite project demonstrating the same diagram built with a real graph library, where the layout is computed rather than hand-placed.
 
 ---
 
@@ -105,7 +108,16 @@ Two caveats worth keeping in mind:
 ├── index.html            landing page linking to both visualizations
 ├── trust-map.html        The Trust Map (concept map)
 ├── upload-anatomy.html   Anatomy of an Upload (system design map)
+├── reactflow-version/    same upload map, React Flow + ELK auto-layout
 └── README.md
 ```
 
-Each HTML file is fully standalone — you can open, move, or share any one of them on its own.
+Each root HTML file is fully standalone — you can open, move, or share any one of them on its own. `reactflow-version/` is the exception: it is a Vite project and needs `npm install` first.
+
+## Why two versions of the upload map
+
+The root `upload-anatomy.html` places every node at coordinates written by hand. That keeps it dependency-free and instantly openable, but adding a component means repositioning its neighbours, and edge/box collisions have to be found and fixed manually.
+
+`reactflow-version/` describes only what connects to what, and lets ELK compute every coordinate. Nodes become draggable with self-rerouting edges, and the whole class of placement bugs disappears — at the cost of a build step, ~560 KB gzipped of dependencies, and not being able to run as a Claude Artifact (its CSP blocks the bundle).
+
+Neither is strictly better. The full comparison is in the [React Flow README](reactflow-version/README.md).
