@@ -1,0 +1,691 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Trust Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root{
+    --bg:#090D14;
+    --bg-panel:#121826;
+    --bg-node:#141B29;
+    --ink:#EDF1F8;
+    --ink-soft:#9AA7BE;
+    --ink-faint:#5C6780;
+    --line:#212B3D;
+    --line-strong:#2B3750;
+
+    --c-find:#5B8DFF;    --find-soft:rgba(91,141,255,.14);
+    --c-crypt:#B18CFF;   --crypt-soft:rgba(177,140,255,.14);
+    --c-resil:#38C6D9;   --resil-soft:rgba(56,198,217,.14);
+    --c-access:#F2685C;  --access-soft:rgba(242,104,92,.14);
+    --c-trans:#34D399;   --trans-soft:rgba(52,211,153,.14);
+    --c-threat:#E8A23D;  --threat-soft:rgba(232,162,61,.14);
+
+    color-scheme: dark;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:auto; }
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  ::selection{ background:var(--c-crypt); color:#0B0F17; }
+  button{ font:inherit; color:inherit; background:none; border:none; }
+  .mono{ font-family:"IBM Plex Mono", ui-monospace, monospace; }
+
+  /* ---------- Header ---------- */
+  .hero{ max-width:1040px; margin:0 auto; padding:3.25rem 1.75rem 1.5rem; }
+  .hero-eyebrow{
+    font-family:"IBM Plex Mono"; font-size:.75rem; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--c-threat); font-weight:500; display:flex; align-items:center; gap:.6rem;
+  }
+  .hero-eyebrow::before{ content:""; width:22px; height:2px; background:var(--c-threat); display:inline-block; }
+  h1{
+    font-family:"IBM Plex Sans Condensed"; font-weight:700; font-size:clamp(2.3rem, 5vw, 3.6rem);
+    line-height:.98; letter-spacing:-.01em; margin:.55rem 0 0; text-wrap:balance;
+  }
+  .hero p{ font-size:1.06rem; line-height:1.6; color:var(--ink-soft); max-width:58ch; margin:1rem 0 0; }
+
+  .toolbar{
+    max-width:1040px; margin:1.4rem auto 0; padding:0 1.75rem;
+    display:flex; flex-wrap:wrap; align-items:center; gap:.6rem;
+  }
+  .tbtn{
+    font-family:"IBM Plex Mono"; font-size:.72rem; letter-spacing:.03em;
+    border:1px solid var(--line-strong); color:var(--ink-soft);
+    padding:.45rem .8rem; border-radius:100px; cursor:pointer;
+    transition:border-color .2s ease, color .2s ease, background .2s ease;
+  }
+  .tbtn:hover{ color:var(--ink); border-color:var(--c-crypt); background:var(--crypt-soft); }
+  .tb-sep{ width:1px; height:18px; background:var(--line-strong); margin:0 .2rem; }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+  .legend-item{
+    display:flex; align-items:center; gap:.4rem; font-family:"IBM Plex Mono"; font-size:.68rem;
+    color:var(--ink-faint); padding:.3rem .6rem .3rem .5rem; border-radius:100px; border:1px solid var(--line);
+  }
+  .legend-dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+  .legend-dash{ width:14px; height:0; border-top:2px dashed var(--c-threat); flex:none; }
+  .legend-line{ width:14px; height:2px; background:var(--line-strong); flex:none; }
+
+  /* ---------- Canvas ---------- */
+  .canvas-viewport{
+    position:relative; margin:1.75rem auto 0; max-width:1300px;
+    height:min(80vh, 820px); min-height:440px;
+    overflow:auto; cursor:grab;
+    border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    background:
+      radial-gradient(circle, rgba(255,255,255,.055) 1px, transparent 1.4px) 0 0/26px 26px,
+      var(--bg);
+  }
+  .canvas-viewport.is-panning{ cursor:grabbing; }
+  .canvas-sizer{ position:relative; width:1150px; height:1150px; }
+  .canvas{
+    position:absolute; top:0; left:0; width:1150px; height:1150px;
+    transform-origin:0 0;
+  }
+  @media (max-width:640px){
+    .canvas-viewport{ height:64vh; }
+  }
+
+  #edge-svg{ position:absolute; inset:0; width:1150px; height:1150px; overflow:visible; }
+  .edge{ fill:none; stroke:var(--line-strong); stroke-width:1.6; transition:opacity .35s ease, stroke-width .25s ease; }
+  .edge--threat{ stroke:var(--c-threat); stroke-width:1.5; stroke-dasharray:1 6; stroke-linecap:round; opacity:0; }
+  .edge--threat.is-shown{ opacity:.55; }
+  .edge--concept{ opacity:0; }
+  .edge--concept.is-shown{ opacity:1; }
+  .edge.is-lit{ opacity:1 !important; stroke-width:2.6; }
+  .edge.is-dim{ opacity:.08 !important; }
+
+  .node-wrap{
+    position:absolute; transform:translate(-50%,-50%);
+    display:flex; flex-direction:column; align-items:center; gap:.45rem;
+    width:150px;
+  }
+  .node{
+    --c: var(--ink); --soft: var(--line);
+    position:relative;
+    width:var(--size,60px); height:var(--size,60px); border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--bg-node); border:1.5px solid var(--c);
+    color:var(--c); cursor:pointer; flex:none;
+    box-shadow:0 0 0 0 transparent;
+    transition:transform .3s cubic-bezier(.3,.9,.4,1.2), opacity .35s ease, box-shadow .25s ease, background .25s ease;
+  }
+  .node:hover{ background:var(--soft); }
+  .node:focus-visible{ outline:2px solid var(--c); outline-offset:3px; }
+  .node-icon{ width:44%; height:44%; stroke:currentColor; fill:none; }
+  .node-label{
+    font-family:"IBM Plex Mono"; font-size:.72rem; text-align:center; color:var(--ink-soft);
+    line-height:1.25; transition:color .25s ease, opacity .35s ease;
+  }
+
+  .node--hub{ --size:104px; --c:var(--ink); --soft:#1B2333; border-width:2px;
+    box-shadow:0 0 0 6px rgba(237,241,248,.05), 0 0 40px -6px rgba(177,140,255,.35); }
+  .node--hub .node-label{ font-family:"IBM Plex Sans Condensed"; font-weight:700; font-size:.95rem; color:var(--ink); }
+
+  .node--cluster{ --size:80px; }
+  .node--cluster .node-label{ font-weight:600; color:var(--ink); font-size:.74rem; }
+  .node--concept{ --size:58px; }
+  .node--threat{ --size:52px; border-style:dashed; }
+
+  .node-wrap.is-hidden{ opacity:0; pointer-events:none; }
+  .node-wrap.is-hidden .node{ transform:scale(.5); }
+  .node-wrap.is-dim .node{ opacity:.3; }
+  .node-wrap.is-dim .node-label{ opacity:.3; }
+  .node-wrap.is-lit .node{ box-shadow:0 0 0 5px var(--soft); }
+
+  .expand-flag{
+    position:absolute; right:-3px; bottom:-3px; width:20px; height:20px; border-radius:50%;
+    background:var(--bg); border:1.5px solid var(--c-threat); color:var(--c-threat);
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;
+    pointer-events:none; transition:transform .25s ease;
+  }
+  .node--cluster[aria-expanded="true"] .expand-flag{ transform:rotate(45deg); }
+
+  .node--threat.is-active{ box-shadow:0 0 14px -2px var(--c-threat); }
+
+  /* ---------- Popover ---------- */
+  .popover{
+    position:fixed; z-index:50; width:320px; max-width:calc(100vw - 24px);
+    background:var(--bg-panel); border:1px solid var(--line-strong); border-radius:12px;
+    padding:1.1rem 1.2rem 1.2rem; box-shadow:0 20px 60px -20px rgba(0,0,0,.65), 0 0 0 1px rgba(0,0,0,.2);
+    opacity:0; transform:translateY(4px) scale(.98); pointer-events:none;
+    transition:opacity .18s ease, transform .18s ease;
+  }
+  .popover.is-open{ opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+  .pop-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem; }
+  .pop-tag{
+    font-family:"IBM Plex Mono"; font-size:.64rem; letter-spacing:.06em; text-transform:uppercase; font-weight:500;
+    color:var(--pc, var(--ink)); background:var(--ps, var(--line)); padding:.22rem .55rem; border-radius:100px;
+  }
+  .pop-close{ cursor:pointer; color:var(--ink-faint); font-size:1.1rem; line-height:1; padding:.1rem .3rem; }
+  .pop-close:hover{ color:var(--ink); }
+  .popover h3{ font-family:"IBM Plex Sans Condensed"; font-size:1.28rem; font-weight:700; margin:.6rem 0 .5rem; }
+  .popover .tech{ font-size:.9rem; line-height:1.55; color:var(--ink-soft); margin:0; }
+  .popover .irl{ margin-top:.8rem; padding-top:.7rem; border-top:1px dashed var(--line); }
+  .popover .irl-tag{ font-family:"IBM Plex Mono"; font-size:.62rem; letter-spacing:.08em; color:var(--pc,var(--c-threat)); text-transform:uppercase; font-weight:600; }
+  .popover .irl p{ margin:.35rem 0 0; font-size:.86rem; line-height:1.5; font-style:italic; color:var(--ink); }
+  .pop-related{ margin-top:.85rem; padding-top:.75rem; border-top:1px solid var(--line); }
+  .pop-related-label{ font-family:"IBM Plex Mono"; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:.45rem; display:block; }
+  .chips{ display:flex; flex-wrap:wrap; gap:.4rem; }
+  .chip{
+    font-family:"IBM Plex Mono"; font-size:.7rem; padding:.32rem .6rem; border-radius:100px;
+    border:1px solid var(--cc,var(--line-strong)); color:var(--cc,var(--ink-soft)); cursor:pointer;
+    transition:background .2s ease;
+  }
+  .chip:hover{ background:var(--cs,var(--line)); }
+
+  footer{
+    max-width:1040px; margin:2.5rem auto 0; padding:1.4rem 1.75rem 4rem;
+    font-family:"IBM Plex Mono"; font-size:.72rem; color:var(--ink-faint); line-height:1.7;
+    border-top:1px solid var(--line);
+  }
+  footer a{ color:var(--ink-faint); }
+  footer a:hover{ color:var(--c-crypt); }
+
+  @media (prefers-reduced-motion: reduce){
+    .node, .node-wrap, .edge, .popover{ transition:none !important; }
+  }
+</style>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3" stroke-width="1.7"/><path d="M15 9l-2 5-5 2 2-5z" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2" stroke-width="1.7"/><path d="M8 11V8a4 4 0 018 0v3" stroke-width="1.7"/></symbol>
+    <symbol id="i-servers" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="5" rx="1.3" stroke-width="1.6"/><rect x="4" y="14" width="16" height="5" rx="1.3" stroke-width="1.6"/><circle cx="8" cy="7.5" r=".7" fill="currentColor" stroke="none"/><circle cx="8" cy="16.5" r=".7" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-wall" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1" stroke-width="1.6"/><path d="M3 9h18M3 15h18M9 4v5M15 9v6M9 15v5" stroke-width="1.4"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M11 4h6a2 2 0 012 2v6l-9 9-8-8 9-9z" stroke-width="1.7" stroke-linejoin="round"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v6M15 3v6M6 9h12v3a6 6 0 01-6 6 6 6 0 01-6-6V9z" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18v3" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 016.5 3H20v15H6.5A2.5 2.5 0 004 20.5V5.5z" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 20.5A2.5 2.5 0 016.5 18H20" stroke-width="1.6"/></symbol>
+    <symbol id="i-browserlock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" stroke-width="1.6"/><path d="M3 8h18" stroke-width="1.6"/><rect x="9.3" y="11.4" width="5.4" height="4.2" rx="1" stroke-width="1.4"/><path d="M10.4 11.4v-1.3a1.6 1.6 0 013.2 0v1.3" stroke-width="1.4"/></symbol>
+    <symbol id="i-tunnel" viewBox="0 0 24 24"><path d="M3 16a9 9 0 0118 0" stroke-width="1.7"/><path d="M7 16a5 5 0 0110 0" stroke-width="1.5"/><circle cx="12" cy="16" r="1.1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-7 4 14 2-7h6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M3 3l18 18" stroke-width="1.7" stroke-linecap="round"/><path d="M10.6 5.2A10.6 10.6 0 0121 12s-1.4 2.6-4 4.5M6.2 6.9C4 8.4 3 12 3 12s3.5 7 9 7c1.3 0 2.5-.3 3.6-.8" stroke-width="1.5" stroke-linecap="round"/><path d="M9.9 10a3 3 0 004.1 4.1" stroke-width="1.5"/></symbol>
+    <symbol id="i-signpost" viewBox="0 0 24 24"><path d="M5 21V10" stroke-width="1.7" stroke-linecap="round"/><path d="M5 6h12l-2.5 3L17 12H5" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 16l3 3m0-3l-3 3" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke-width="1.5"/><circle cx="12" cy="12" r="4.2" stroke-width="1.5"/><circle cx="12" cy="12" r=".9" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-burst" viewBox="0 0 24 24"><path d="M12 12L4 6M12 12L4 18M12 12L20 6M12 12L20 18" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></symbol>
+  </defs>
+</svg>
+
+<div class="hero">
+  <div class="hero-eyebrow">An interactive threat &amp; defense map</div>
+  <h1>The Trust Map</h1>
+  <p>Five defenses, four attacks, one connected picture. Click anything to open it up and see exactly what it protects &mdash; and what it's protecting against.</p>
+</div>
+
+<div class="toolbar">
+  <button class="tbtn" id="btn-expand">Expand all</button>
+  <button class="tbtn" id="btn-collapse">Collapse all</button>
+  <button class="tbtn" id="btn-center">Center view</button>
+  <div class="tb-sep"></div>
+  <button class="tbtn" id="btn-fit">Fit</button>
+  <button class="tbtn" id="btn-zoomout" aria-label="Zoom out">&minus;</button>
+  <button class="tbtn" id="btn-zoomin" aria-label="Zoom in">+</button>
+  <div class="tb-sep"></div>
+  <div class="legend" id="legend"></div>
+</div>
+
+<div class="canvas-viewport" id="viewport">
+  <div class="canvas-sizer" id="sizer">
+    <div class="canvas" id="canvas">
+      <svg id="edge-svg"></svg>
+    </div>
+  </div>
+</div>
+
+<div class="popover" id="popover">
+  <div class="pop-top">
+    <span class="pop-tag" id="pop-tag"></span>
+    <span class="pop-close" id="pop-close">&times;</span>
+  </div>
+  <h3 id="pop-title"></h3>
+  <p class="tech" id="pop-tech"></p>
+  <div class="irl" id="pop-irl-wrap">
+    <span class="irl-tag" id="pop-irl-tag">In the wild</span>
+    <p id="pop-irl"></p>
+  </div>
+  <div class="pop-related" id="pop-related-wrap">
+    <span class="pop-related-label" id="pop-related-label">Connected to</span>
+    <div class="chips" id="pop-chips"></div>
+  </div>
+</div>
+
+<footer>
+  Concepts adapted from <a href="https://www.youtube.com/watch?v=bdeV_TjNfFA" target="_blank" rel="noopener">"Every Networking Concept Explained"</a> by Tech With Diego &mdash; reframed around cybersecurity, with original explanations, analogies, and threat mapping.
+</footer>
+
+<script>
+(function(){
+  const CAT = {
+    find:   { label:"Finding Each Other",    c:"var(--c-find)",   soft:"var(--find-soft)"  },
+    crypt:  { label:"Encryption in Transit", c:"var(--c-crypt)",  soft:"var(--crypt-soft)" },
+    resil:  { label:"Staying Online",        c:"var(--c-resil)",  soft:"var(--resil-soft)" },
+    access: { label:"Access Control",        c:"var(--c-access)", soft:"var(--access-soft)"},
+    trans:  { label:"How Data Travels",      c:"var(--c-trans)",  soft:"var(--trans-soft)" },
+    threat: { label:"Attack",                c:"var(--c-threat)", soft:"var(--threat-soft)"}
+  };
+
+  const HUB = { id:"center", kind:"hub", angle:0, r:0, icon:"shield", label:"Network Security",
+    tech:"Every defense on this map exists because something, somewhere, would abuse the network without it.",
+    irl:"Click any node to open it up, and use the chips inside to jump straight to what it connects to." };
+
+  const CLUSTERS = [
+    { id:"find",   cat:"find",   angle:0,   icon:"compass", label:"Finding Each Other",
+      tech:"How a request finds the right device, application, and name before anything else can happen — and where an attacker's reconnaissance begins.",
+      irl:"Every attack starts with the same question a normal connection asks first: where are you, and what's listening?",
+      children:["ip","ports","dns"] },
+    { id:"crypt",  cat:"crypt",  angle:72,  icon:"lock", label:"Encryption in Transit",
+      tech:"How data survives the trip between two devices without anyone in between reading or quietly changing it.",
+      irl:"Three tools, one job: make eavesdropping useless even when someone is already listening.",
+      children:["tls","https","vpn"] },
+    { id:"resil",  cat:"resil",  angle:144, icon:"servers", label:"Staying Online",
+      tech:"Keeping a service reachable when traffic spikes — whether that spike is real customers or an attack.",
+      irl:"Availability is a security property too: a service nobody can reach is a service that failed.",
+      children:["lb"] },
+    { id:"access", cat:"access", angle:216, icon:"wall", label:"Access Control",
+      tech:"Deciding what's allowed to enter a network in the first place, before it ever reaches a device.",
+      irl:"The front door. Everything else on this map assumes something already got past it.",
+      children:["firewall"] },
+    { id:"trans",  cat:"trans",  angle:288, icon:"swap", label:"How Data Travels",
+      tech:"The rules for moving data reliably — and the exact behaviors attackers exploit to move it maliciously fast.",
+      irl:"The same handshake that guarantees delivery can be turned into a weapon if no one's watching for abuse.",
+      children:["tcpudp","ping"] }
+  ];
+
+  const CONCEPTS = [
+    { id:"ip", cat:"find", angle:338, icon:"tag", label:"IP Address",
+      tech:"The logical address that identifies a device on a network — the thing nearly every rule on this map is ultimately written against.",
+      irl:"A street address: firewalls allow or block by it, and it's the first thing an attacker's scan reveals." },
+    { id:"ports", cat:"find", angle:0, icon:"plug", label:"Ports",
+      tech:"The number that tells a device which application should receive incoming data — thousands of potential doors on every address.",
+      irl:"An apartment number. Attackers knock on every door to see which ones answer." },
+    { id:"dns", cat:"find", angle:22, icon:"book", label:"DNS",
+      tech:"Translates a domain name into the IP address behind it, before a connection can even begin.",
+      irl:"The phone book everyone trusts by default — which is exactly why poisoning it works so well." },
+    { id:"tls", cat:"crypt", angle:50, icon:"lock", label:"TLS / SSL",
+      tech:"Encrypts a connection so both endpoints can verify each other and nobody in between can read or tamper with the traffic.",
+      irl:"Sealing the letter in a locked box instead of a see-through envelope." },
+    { id:"https", cat:"crypt", angle:72, icon:"browserlock", label:"HTTPS",
+      tech:"Ordinary HTTP wrapped inside TLS — the padlock icon in your browser is this, working in real time.",
+      irl:"The difference between shouting your order across a counter and passing it through a sealed window." },
+    { id:"vpn", cat:"crypt", angle:94, icon:"tunnel", label:"VPN",
+      tech:"Encrypts an entire tunnel between your device and a remote network, hiding everything sent through it from anyone nearby.",
+      irl:"Trading an open pickup bed for an armored, windowless truck." },
+    { id:"lb", cat:"resil", angle:144, icon:"servers", label:"Load Balancer",
+      tech:"Spreads incoming requests across multiple servers, so no single one can be overwhelmed — by real traffic or an attack.",
+      irl:"A restaurant host seating a sudden crowd across every table instead of piling them onto one." },
+    { id:"firewall", cat:"access", angle:216, icon:"wall", label:"Firewall",
+      tech:"Filters traffic in and out of a network by rule: allowed port, blocked address, permitted protocol.",
+      irl:"A bouncer working from a guest list, checking everyone at the door before they're let in." },
+    { id:"tcpudp", cat:"trans", angle:272, icon:"swap", label:"TCP vs UDP",
+      tech:"TCP confirms every packet arrived, resending what's lost — reliable, but that handshake can be abused. UDP just fires packets with no confirmation — fast, and easy to spoof.",
+      irl:"TCP is a phone call you both keep confirming; UDP is a shouted broadcast — nobody checks who's actually listening." },
+    { id:"ping", cat:"trans", angle:304, icon:"pulse", label:"Ping / ICMP",
+      tech:"Sends a small packet and waits for a reply, purely to check whether a device is alive and reachable.",
+      irl:"Knocking to hear “I'm home” — useful for admins, and just as useful for an attacker mapping which doors exist." }
+  ];
+
+  const THREATS = [
+    { id:"mitm", angle:36, icon:"eyeoff", label:"Man-in-the-Middle",
+      tech:"An attacker secretly sits between two devices, reading or quietly altering traffic both sides believe is private.",
+      irl:"Someone intercepting, reading, and resealing your mail before it reaches the mailbox — undetected.",
+      relatesTo:["tls","https","vpn"] },
+    { id:"dnsSpoof", angle:324, icon:"signpost", label:"DNS Spoofing",
+      tech:"Forging DNS responses so a request for a real domain quietly resolves to the attacker's server instead.",
+      irl:"Swapping a street sign so everyone confidently drives to the wrong address.",
+      relatesTo:["dns"] },
+    { id:"portscan", angle:180, icon:"target", label:"Port Scanning",
+      tech:"Systematically probing a range of ports to find which ones are open — and what might be exploitable behind them.",
+      irl:"Trying every door handle on a building, quietly, before picking which one to force.",
+      relatesTo:["ports","firewall"] },
+    { id:"ddos", angle:252, icon:"burst", label:"DDoS",
+      tech:"Flooding a target with traffic from many sources at once, so it can't keep up with legitimate requests.",
+      irl:"So many fake customers crowding the entrance that real customers can't get in the door.",
+      relatesTo:["lb","firewall","tcpudp"] }
+  ];
+
+  const ALL = {}; [HUB, ...CLUSTERS, ...CONCEPTS, ...THREATS].forEach(n => ALL[n.id]=n);
+  CLUSTERS.forEach(c => c.children.forEach(id => ALL[id].parent = c.id));
+
+  const CX=575, CY=575, R_CLUSTER=205, R_CONCEPT=345, R_THREAT=440;
+  function xy(angleDeg, r){
+    const a = (angleDeg-0) * Math.PI/180;
+    return { x: CX + r*Math.sin(a), y: CY - r*Math.cos(a) };
+  }
+  HUB.x = CX; HUB.y = CY;
+  CLUSTERS.forEach(n => Object.assign(n, xy(n.angle, R_CLUSTER)));
+  CONCEPTS.forEach(n => Object.assign(n, xy(n.angle, R_CONCEPT)));
+  THREATS.forEach(n => Object.assign(n, xy(n.angle, R_THREAT)));
+
+  const canvas = document.getElementById("canvas");
+  const svg = document.getElementById("edge-svg");
+  svg.setAttribute("viewBox","0 0 1150 1150");
+
+  function makeSVG(tag, attrs){
+    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for(const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+  function curve(a,b, bow){
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy)||1;
+    const nx=-dy/len, ny=dx/len;
+    const cx=mx+nx*bow, cy=my+ny*bow;
+    return `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+  }
+
+  const expanded = new Set();
+  const edgeEls = {};
+
+  // structural edges: hub -> cluster
+  CLUSTERS.forEach(c=>{
+    const p = makeSVG("path",{ class:"edge edge--cluster", d:curve(HUB,c,0) });
+    svg.appendChild(p);
+    edgeEls["center|"+c.id] = p;
+  });
+  // structural edges: cluster -> concept
+  CONCEPTS.forEach(n=>{
+    const cl = ALL[n.parent];
+    const p = makeSVG("path",{ class:"edge edge--concept", d:curve(cl,n,0) });
+    svg.appendChild(p);
+    edgeEls[n.parent+"|"+n.id] = p;
+  });
+  // threat edges: threat -> related concept
+  THREATS.forEach(t=>{
+    t.relatesTo.forEach(cid=>{
+      const target = ALL[cid];
+      const bow = 40 * (Math.random() > .5 ? 1 : -1);
+      const p = makeSVG("path",{ class:"edge edge--threat", d:curve(t,target,bow) });
+      svg.appendChild(p);
+      edgeEls[t.id+"|"+cid] = p;
+    });
+  });
+
+  function buildNode(n, kind){
+    const wrap = document.createElement("div");
+    wrap.className = "node-wrap" + (kind==="concept" ? " is-hidden":"");
+    wrap.style.left = n.x+"px"; wrap.style.top = n.y+"px";
+    wrap.dataset.id = n.id;
+
+    const btn = document.createElement("button");
+    btn.className = "node node--"+kind;
+    btn.setAttribute("aria-label", n.label);
+    const cat = kind==="threat" ? CAT.threat : CAT[n.cat] || null;
+    if(cat){ btn.style.setProperty("--c", cat.c); btn.style.setProperty("--soft", cat.soft); }
+    if(kind==="cluster"){ btn.setAttribute("aria-expanded","false"); }
+
+    const icon = document.createElementNS("http://www.w3.org/2000/svg","svg");
+    icon.setAttribute("class","node-icon");
+    const use = document.createElementNS("http://www.w3.org/2000/svg","use");
+    use.setAttributeNS("http://www.w3.org/1999/xlink","href","#i-"+n.icon);
+    icon.appendChild(use);
+    btn.appendChild(icon);
+
+    if(kind==="cluster"){
+      const flag = document.createElement("span");
+      flag.className = "expand-flag"; flag.textContent = "+";
+      btn.appendChild(flag);
+    }
+
+    const label = document.createElement("div");
+    label.className = "node-label";
+    label.textContent = n.label;
+
+    wrap.appendChild(btn); wrap.appendChild(label);
+    canvas.appendChild(wrap);
+    n._wrap = wrap; n._btn = btn;
+
+    btn.addEventListener("click", (e)=>{ e.stopPropagation(); onNodeClick(n, kind); });
+    return wrap;
+  }
+
+  buildNode(HUB, "hub");
+  CLUSTERS.forEach(c=>buildNode(c,"cluster"));
+  CONCEPTS.forEach(c=>buildNode(c,"concept"));
+  THREATS.forEach(t=>buildNode(t,"threat"));
+
+  function setExpanded(clusterId, state){
+    const cl = ALL[clusterId];
+    if(state) expanded.add(clusterId); else expanded.delete(clusterId);
+    cl._btn.setAttribute("aria-expanded", state?"true":"false");
+    cl._btn.querySelector(".expand-flag").textContent = state ? "−" : "+";
+    cl.children.forEach(id=>{
+      const n = ALL[id];
+      n._wrap.classList.toggle("is-hidden", !state);
+      const e = edgeEls[clusterId+"|"+id];
+      if(e) e.classList.toggle("is-shown", state);
+    });
+    refreshThreatEdges();
+  }
+
+  function refreshThreatEdges(){
+    THREATS.forEach(t=>{
+      let active = false;
+      t.relatesTo.forEach(cid=>{
+        const shown = !ALL[cid]._wrap.classList.contains("is-hidden");
+        const e = edgeEls[t.id+"|"+cid];
+        if(e) e.classList.toggle("is-shown", shown);
+        if(shown) active = true;
+      });
+      t._btn.classList.toggle("is-active", active);
+    });
+  }
+
+  function expandAll(){ CLUSTERS.forEach(c=>setExpanded(c.id, true)); }
+  function collapseAll(){ CLUSTERS.forEach(c=>setExpanded(c.id, false)); closePopover(); }
+
+  document.getElementById("btn-expand").addEventListener("click", expandAll);
+  document.getElementById("btn-collapse").addEventListener("click", collapseAll);
+  document.getElementById("btn-center").addEventListener("click", ()=>centerOn(HUB, true));
+
+  /* ---------- highlighting ---------- */
+  function clearHighlight(){
+    Object.values(edgeEls).forEach(e=>e.classList.remove("is-lit","is-dim"));
+    document.querySelectorAll(".node-wrap").forEach(w=>w.classList.remove("is-dim","is-lit"));
+  }
+  function highlight(node){
+    clearHighlight();
+    const connected = new Set([node.id]);
+    Object.keys(edgeEls).forEach(key=>{
+      const [a,b] = key.split("|");
+      if(a===node.id || b===node.id){
+        edgeEls[key].classList.add("is-lit");
+        connected.add(a); connected.add(b);
+      } else {
+        edgeEls[key].classList.add("is-dim");
+      }
+    });
+    document.querySelectorAll(".node-wrap").forEach(w=>{
+      if(connected.has(w.dataset.id)) w.classList.add("is-lit");
+      else w.classList.add("is-dim");
+    });
+  }
+
+  /* ---------- popover ---------- */
+  const pop = document.getElementById("popover");
+  const popTag = document.getElementById("pop-tag");
+  const popTitle = document.getElementById("pop-title");
+  const popTech = document.getElementById("pop-tech");
+  const popIrl = document.getElementById("pop-irl");
+  const popIrlTag = document.getElementById("pop-irl-tag");
+  const popChips = document.getElementById("pop-chips");
+  const popRelatedLabel = document.getElementById("pop-related-label");
+  const popRelatedWrap = document.getElementById("pop-related-wrap");
+
+  function relatedFor(node, kind){
+    if(kind==="hub") return null;
+    if(kind==="cluster") return { label:"Contains", ids:node.children };
+    if(kind==="threat") return { label:"Targets / mitigated by", ids:node.relatesTo };
+    // concept: find threats that relate to it
+    const ids = THREATS.filter(t=>t.relatesTo.includes(node.id)).map(t=>t.id);
+    return ids.length ? { label:"Exploited by", ids } : null;
+  }
+
+  function openPopover(node, kind, anchorRect){
+    const cat = kind==="threat" ? CAT.threat : (CAT[node.cat] || null);
+    const c = cat ? cat.c : "var(--ink)";
+    const soft = cat ? cat.soft : "var(--line)";
+    pop.style.setProperty("--pc", c);
+    pop.style.setProperty("--ps", soft);
+
+    popTag.textContent = kind==="hub" ? "Overview" : kind==="cluster" ? "Category · "+CAT[node.cat].label : kind==="threat" ? "Attack" : CAT[node.cat].label;
+    popTitle.textContent = node.label;
+    popTech.textContent = node.tech;
+    popIrlTag.textContent = kind==="threat" ? "Real example" : "In the wild";
+    popIrl.textContent = node.irl;
+
+    const rel = relatedFor(node, kind);
+    popChips.innerHTML = "";
+    if(rel){
+      popRelatedWrap.style.display = "";
+      popRelatedLabel.textContent = rel.label;
+      rel.ids.forEach(id=>{
+        const t = ALL[id];
+        const chip = document.createElement("button");
+        chip.className = "chip";
+        const chipCat = THREATS.includes(t) ? CAT.threat : CAT[t.cat];
+        if(chipCat){ chip.style.setProperty("--cc", chipCat.c); chip.style.setProperty("--cs", chipCat.soft); }
+        chip.textContent = t.label;
+        chip.addEventListener("click",(e)=>{ e.stopPropagation(); jumpTo(id); });
+        popChips.appendChild(chip);
+      });
+    } else {
+      popRelatedWrap.style.display = "none";
+    }
+
+    pop.classList.add("is-open");
+    positionPopover(anchorRect);
+    highlight(node);
+  }
+
+  function positionPopover(anchorRect){
+    pop.style.left = "-9999px"; pop.style.top="-9999px";
+    requestAnimationFrame(()=>{
+      const pw = pop.offsetWidth, ph = pop.offsetHeight;
+      let x = anchorRect.right + 14;
+      let y = anchorRect.top + anchorRect.height/2 - ph/2;
+      if(x + pw > window.innerWidth - 12) x = anchorRect.left - pw - 14;
+      if(x < 12) x = Math.min(Math.max(12, anchorRect.left), window.innerWidth-pw-12);
+      y = Math.min(Math.max(12, y), window.innerHeight-ph-12);
+      pop.style.left = x+"px"; pop.style.top = y+"px";
+    });
+  }
+
+  function closePopover(){
+    pop.classList.remove("is-open");
+    clearHighlight();
+  }
+  document.getElementById("pop-close").addEventListener("click", closePopover);
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closePopover(); });
+
+  const viewport = document.getElementById("viewport");
+  viewport.addEventListener("click", (e)=>{ if(e.target===viewport || e.target===canvas || e.target===svg) closePopover(); });
+
+  function afterScroll(el, cb){
+    let done = false;
+    const finish = ()=>{
+      if(done) return;
+      done = true;
+      el.removeEventListener("scrollend", finish);
+      clearTimeout(timer);
+      cb();
+    };
+    const timer = setTimeout(finish, 700);
+    el.addEventListener("scrollend", finish);
+  }
+
+  function jumpTo(id){
+    const node = ALL[id];
+    const kind = node===HUB ? "hub" : CLUSTERS.includes(node) ? "cluster" : THREATS.includes(node) ? "threat" : "concept";
+    if(kind==="concept" && !expanded.has(node.parent)) setExpanded(node.parent, true);
+    centerOn(node, true);
+    openPopover(node, kind, node._btn.getBoundingClientRect());
+    afterScroll(viewport, ()=> positionPopover(node._btn.getBoundingClientRect()));
+  }
+
+  function onNodeClick(node, kind){
+    if(kind==="cluster") setExpanded(node.id, !expanded.has(node.id));
+    openPopover(node, kind, node._btn.getBoundingClientRect());
+  }
+
+  /* ---------- zoom ---------- */
+  const sizer = document.getElementById("sizer");
+  const CANVAS_SIZE = 1150;
+  let scale = 1;
+
+  function applyScale(s, keepCenter){
+    const prev = scale;
+    scale = Math.min(1.4, Math.max(0.5, s));
+    const cxOld = (viewport.scrollLeft + viewport.clientWidth/2) / prev;
+    const cyOld = (viewport.scrollTop + viewport.clientHeight/2) / prev;
+    canvas.style.transform = `scale(${scale})`;
+    sizer.style.width = (CANVAS_SIZE*scale)+"px";
+    sizer.style.height = (CANVAS_SIZE*scale)+"px";
+    if(keepCenter){
+      viewport.scrollLeft = cxOld*scale - viewport.clientWidth/2;
+      viewport.scrollTop  = cyOld*scale - viewport.clientHeight/2;
+    }
+  }
+
+  function fitToView(){
+    const pad = 40;
+    const s = Math.min(
+      (viewport.clientWidth - pad) / CANVAS_SIZE,
+      (viewport.clientHeight - pad) / CANVAS_SIZE
+    );
+    applyScale(s, false);
+    centerOn(HUB, false);
+  }
+
+  function centerOn(node, smooth){
+    const targetLeft = node.x*scale - viewport.clientWidth/2;
+    const targetTop = node.y*scale - viewport.clientHeight/2;
+    viewport.scrollTo({ left:targetLeft, top:targetTop, behavior: smooth ? "smooth" : "auto" });
+  }
+
+  document.getElementById("btn-fit").addEventListener("click", fitToView);
+  document.getElementById("btn-zoomin").addEventListener("click", ()=> applyScale(scale*1.25, true));
+  document.getElementById("btn-zoomout").addEventListener("click", ()=> applyScale(scale/1.25, true));
+
+  /* ---------- pan-to-scroll (drag on empty canvas) ---------- */
+  let panning=false, sx=0, sy=0, sl=0, st=0;
+  viewport.addEventListener("mousedown", e=>{
+    if(e.target.closest(".node")) return;
+    panning=true; sx=e.clientX; sy=e.clientY; sl=viewport.scrollLeft; st=viewport.scrollTop;
+    viewport.classList.add("is-panning");
+  });
+  window.addEventListener("mousemove", e=>{
+    if(!panning) return;
+    viewport.scrollLeft = sl - (e.clientX-sx);
+    viewport.scrollTop = st - (e.clientY-sy);
+  });
+  window.addEventListener("mouseup", ()=>{ panning=false; viewport.classList.remove("is-panning"); });
+
+  /* ---------- legend ---------- */
+  const legendEl = document.getElementById("legend");
+  Object.entries(CAT).forEach(([key,c])=>{
+    const el = document.createElement("div");
+    el.className = "legend-item";
+    el.innerHTML = `<span class="legend-dot" style="background:${c.c}"></span>${c.label}`;
+    legendEl.appendChild(el);
+  });
+  const lineNote = document.createElement("div");
+  lineNote.className = "legend-item";
+  lineNote.innerHTML = `<span class="legend-dash"></span>attacks &amp; mitigations`;
+  legendEl.appendChild(lineNote);
+
+  /* ---------- init view ---------- */
+  window.addEventListener("load", fitToView);
+  window.addEventListener("resize", fitToView);
+  fitToView();
+  setTimeout(fitToView, 60);
+})();
+</script>

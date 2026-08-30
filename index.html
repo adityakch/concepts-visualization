@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security Concept Visualizations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Source+Sans+3:wght@400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#080B11; --card:#101622; --ink:#EAEEF6; --soft:#98A4BA; --faint:#5A6479;
+    --line:#1D2634; --strong:#2A3446; --a1:#B18CFF; --a2:#22D3EE;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  .wrap{ max-width:940px; margin:0 auto; padding:4rem 1.75rem 5rem; }
+  .eyebrow{ font-family:"JetBrains Mono"; font-size:.72rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--a2); display:flex; align-items:center; gap:.6rem; }
+  .eyebrow::before{ content:""; width:24px; height:2px; background:var(--a2); }
+  h1{ font-family:"Archivo",system-ui,sans-serif; font-weight:700;
+    font-size:clamp(2.1rem,5vw,3.1rem); line-height:1.03; letter-spacing:-.02em; margin:.65rem 0 0; }
+  .lede{ color:var(--soft); font-size:1.05rem; line-height:1.6; max-width:60ch; margin:1rem 0 0; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+    gap:1.1rem; margin-top:2.5rem; }
+  .card{ display:block; text-decoration:none; color:inherit; background:var(--card);
+    border:1px solid var(--line); border-left:3px solid var(--ac); border-radius:12px;
+    padding:1.4rem 1.5rem 1.5rem; transition:border-color .2s, transform .2s, box-shadow .2s; }
+  .card:hover{ transform:translateY(-3px); box-shadow:0 16px 40px -18px var(--ac); border-color:var(--strong); }
+  .card:focus-visible{ outline:2px solid var(--ac); outline-offset:3px; }
+  .tag{ font-family:"JetBrains Mono"; font-size:.63rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ac); background:var(--acs); padding:.24rem .55rem; border-radius:5px; display:inline-block; }
+  .card h2{ font-family:"Archivo"; font-size:1.4rem; font-weight:700; margin:.75rem 0 .45rem; letter-spacing:-.01em; }
+  .card p{ color:var(--soft); font-size:.93rem; line-height:1.6; margin:0; }
+  .card .go{ font-family:"JetBrains Mono"; font-size:.72rem; color:var(--ac); margin-top:1rem; display:block; }
+  footer{ margin-top:3rem; padding-top:1.3rem; border-top:1px solid var(--line);
+    font-family:"JetBrains Mono"; font-size:.7rem; color:var(--faint); line-height:1.7; }
+  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Interactive explainers</div>
+  <h1>Security Concept Visualizations</h1>
+  <p class="lede">Two interactive maps for learning security by seeing how the pieces connect &mdash; one covering the concepts themselves, one tracing a single real request end to end.</p>
+
+  <div class="grid">
+    <a class="card" href="trust-map.html" style="--ac:#B18CFF;--acs:rgba(177,140,255,.14)">
+      <span class="tag">Concept map</span>
+      <h2>The Trust Map</h2>
+      <p>A radial map of network security: five defense clusters you can expand, and four attacks wired by dashed lines to the exact defenses that stop them. Click anything to open it up.</p>
+      <span class="go">Open &rarr;</span>
+    </a>
+
+    <a class="card" href="upload-anatomy.html" style="--ac:#22D3EE;--acs:rgba(34,211,238,.14)">
+      <span class="tag">System design</span>
+      <h2>Anatomy of an Upload</h2>
+      <p>The topology behind one Google Drive upload &mdash; thirteen calls across four trust boundaries. Play the request through the system and watch where it is encrypted, authorized, and refused.</p>
+      <span class="go">Open &rarr;</span>
+    </a>
+  </div>
+
+  <footer>
+    Both pages are self-contained HTML with no build step and no dependencies.
+    Typefaces load from Google Fonts, so an internet connection gives the intended look; offline they fall back to system fonts and stay fully usable.
+  </footer>
+</div>
+</body>
+</html>

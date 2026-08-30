@@ -1,0 +1,665 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anatomy of an Upload</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root{
+    --bg:#080B11; --bg-panel:#101622; --bg-node:#131A28;
+    --ink:#EAEEF6; --ink-soft:#98A4BA; --ink-faint:#5A6479;
+    --line:#1D2634; --line-strong:#2A3446;
+    --client:#7C93B8; --net:#4C8DFF; --idn:#A78BFA; --app:#34D399;
+    --safe:#F5A524; --store:#22D3EE; --audit:#C08457; --threat:#F2685C;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+  ::selection{ background:var(--idn); color:#0A0E15; }
+
+  .hero{ max-width:1560px; margin:0 auto; padding:2.9rem 1.75rem 1.15rem; }
+  .eyebrow{ font-family:"JetBrains Mono"; font-size:.72rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--store); display:flex; align-items:center; gap:.6rem; font-weight:500; }
+  .eyebrow::before{ content:""; width:24px; height:2px; background:var(--store); }
+  h1{ font-family:"Archivo",system-ui,sans-serif; font-weight:700;
+    font-size:clamp(2.1rem,4.6vw,3.3rem); line-height:1.02; letter-spacing:-.02em; margin:.6rem 0 0; text-wrap:balance; }
+  .hero p{ font-size:1.05rem; line-height:1.6; color:var(--ink-soft); max-width:64ch; margin:.9rem 0 0; }
+
+  .toolbar{ max-width:1560px; margin:1.25rem auto 0; padding:0 1.75rem;
+    display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+  .tbtn{ font-family:"JetBrains Mono"; font-size:.71rem; border:1px solid var(--line-strong);
+    color:var(--ink-soft); padding:.45rem .78rem; border-radius:7px;
+    transition:border-color .2s,color .2s,background .2s; }
+  .tbtn:hover:not(:disabled){ color:var(--ink); border-color:var(--ink-faint); }
+  .tbtn:disabled{ opacity:.34; cursor:default; }
+  .tbtn:focus-visible{ outline:2px solid var(--store); outline-offset:2px; }
+  .tbtn[aria-pressed="true"]{ color:var(--ink); background:var(--tsoft); border-color:var(--tcol); }
+  .tbtn .sw{ display:inline-block; width:7px; height:7px; border-radius:2px;
+    margin-right:.42rem; background:var(--tcol); vertical-align:middle; }
+  .tbtn.play{ color:var(--ink); border-color:var(--app); background:rgba(52,211,153,.12); }
+  .tb-sep{ width:1px; height:18px; background:var(--line-strong); margin:0 .2rem; }
+  .tb-step{ font-family:"JetBrains Mono"; font-size:.71rem; color:var(--ink-faint); padding-left:.1rem; }
+  .tb-step b{ color:var(--ink); }
+
+  .stage{ max-width:1560px; margin:1rem auto 0; padding:0 1.75rem;
+    display:grid; grid-template-columns:minmax(0,1fr) 350px; gap:1.05rem; align-items:start; }
+  @media (max-width:1120px){ .stage{ grid-template-columns:minmax(0,1fr); } }
+
+  .viewport{ position:relative; height:min(74vh,760px); min-height:450px; overflow:auto; cursor:grab;
+    border:1px solid var(--line); border-radius:12px;
+    background:radial-gradient(circle,rgba(255,255,255,.05) 1px,transparent 1.3px) 0 0/28px 28px, var(--bg); }
+  .viewport.is-panning{ cursor:grabbing; }
+  .sizer{ position:relative; width:1580px; height:880px; }
+  .canvas{ position:absolute; inset:0; width:1580px; height:880px; transform-origin:0 0; }
+  #wire{ position:absolute; inset:0; width:1580px; height:880px; overflow:visible; }
+
+  .zone-label{ font-family:"JetBrains Mono"; font-size:11.5px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; }
+  .edge-label{ font-family:"JetBrains Mono"; font-size:10px; fill:var(--ink-faint); }
+  .edge-pill{ fill:#080B11; stroke:#2A3446; stroke-width:1; }
+
+  .ed{ fill:none; stroke-width:1.9; transition:opacity .25s, stroke-width .2s; }
+  .ed.call{ stroke-dasharray:6 4; }
+  .ed.ret{ stroke-dasharray:3 4; stroke-width:1.4; }
+  .ed.dim{ opacity:.13; }
+  .ed.hot{ stroke-width:3.4; }
+  .num{ transition:opacity .25s; }
+  .num.dim{ opacity:.16; }
+  .num circle{ fill:#080B11; stroke-width:1.4; }
+  .num text{ font-family:"JetBrains Mono"; font-size:10px; font-weight:600; text-anchor:middle; }
+
+  .lockpill{ opacity:.9; }
+  .lockpill rect{ fill:#080B11; stroke-width:1; }
+  .lockpill text{ font-family:"JetBrains Mono"; font-size:9.5px; text-anchor:middle; }
+
+  .fail{ opacity:0; transition:opacity .3s; }
+  .fail.on{ opacity:1; }
+  .fail path{ stroke:var(--threat); stroke-width:1.4; stroke-dasharray:2 4; fill:none; }
+  .fail text{ font-family:"JetBrains Mono"; font-size:9.5px; fill:var(--threat); }
+
+  .box{ position:absolute; transform:translate(-50%,-50%); width:158px;
+    background:var(--bg-node); border:1.5px solid var(--c); border-radius:10px;
+    padding:.6rem .6rem .55rem; text-align:center; cursor:pointer;
+    transition:box-shadow .22s, transform .22s, opacity .25s; }
+  .box:hover{ transform:translate(-50%,-50%) scale(1.035); }
+  .box:focus-visible{ outline:2px solid var(--c); outline-offset:3px; }
+  .box .ic{ width:22px; height:22px; stroke:var(--c); fill:none; stroke-width:1.7; }
+  .box .nm{ font-family:"Archivo"; font-weight:600; font-size:12.5px; line-height:1.2; margin-top:.15rem; }
+  .box .sb{ font-family:"JetBrains Mono"; font-size:9.5px; color:var(--ink-faint); margin-top:.18rem; line-height:1.25; }
+  .box.dim{ opacity:.28; }
+  .box.hot{ box-shadow:0 0 0 4px var(--cs), 0 0 30px -8px var(--c); }
+  .box.sel{ box-shadow:0 0 0 4px var(--cs), 0 0 34px -6px var(--c); }
+
+  .tchip{ position:absolute; transform:translate(-50%,-50%);
+    font-family:"JetBrains Mono"; font-size:9.5px; white-space:nowrap;
+    color:var(--threat); background:rgba(242,104,92,.12); border:1px dashed var(--threat);
+    padding:.2rem .45rem; border-radius:5px; opacity:0; pointer-events:none; transition:opacity .3s; }
+  .tchip.on{ opacity:1; }
+  .dchip{ position:absolute; transform:translate(-50%,-50%);
+    font-family:"JetBrains Mono"; font-size:9.5px; white-space:nowrap; font-style:italic;
+    color:var(--ink-soft); background:var(--bg-node); border:1px solid var(--line-strong);
+    padding:.2rem .45rem; border-radius:5px; opacity:0; pointer-events:none; transition:opacity .3s; }
+  .dchip.on{ opacity:1; }
+
+  .panel{ position:sticky; top:1rem; background:var(--bg-panel); border:1px solid var(--line);
+    border-radius:12px; padding:1.1rem 1.2rem 1.25rem; min-height:450px; }
+  @media (max-width:1120px){ .panel{ position:static; min-height:0; } }
+  .p-empty{ color:var(--ink-faint); font-size:.92rem; line-height:1.62; }
+  .p-empty b{ color:var(--ink-soft); font-family:"Archivo"; }
+  .p-kick{ display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .p-tag{ font-family:"JetBrains Mono"; font-size:.62rem; letter-spacing:.07em; text-transform:uppercase;
+    font-weight:500; color:var(--pc); background:var(--ps); padding:.24rem .55rem; border-radius:5px; }
+  .p-n{ font-family:"JetBrains Mono"; font-size:.67rem; color:var(--ink-faint); margin-left:auto; }
+  .panel h2{ font-family:"Archivo"; font-size:1.3rem; font-weight:700; margin:.6rem 0 .12rem; letter-spacing:-.01em; }
+  .p-sub{ font-family:"JetBrains Mono"; font-size:.69rem; color:var(--pc); margin-bottom:.65rem; }
+  .p-body{ font-size:.92rem; line-height:1.6; color:var(--ink-soft); margin:0; }
+  .p-sec{ margin-top:.9rem; padding-top:.75rem; border-top:1px solid var(--line); }
+  .p-sec.hide{ display:none; }
+  .p-t{ font-family:"JetBrains Mono"; font-size:.6rem; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-faint); display:block; margin-bottom:.42rem; }
+  .p-pr{ display:flex; flex-wrap:wrap; gap:.32rem; }
+  .p-pr span{ font-family:"JetBrains Mono"; font-size:.66rem; padding:.24rem .48rem; border-radius:5px;
+    border:1px solid var(--line-strong); color:var(--ink-soft); }
+  .p-th{ font-family:"Archivo"; font-size:.87rem; font-weight:600; color:var(--threat); }
+  .p-x{ font-size:.86rem; line-height:1.55; color:var(--ink-soft); margin:.22rem 0 0; }
+  .p-st{ font-size:.86rem; line-height:1.55; font-style:italic; color:var(--ink); margin:0; }
+
+  .legend{ max-width:1560px; margin:1rem auto 0; padding:0 1.75rem;
+    display:flex; flex-wrap:wrap; gap:.45rem; }
+  .lg{ display:flex; align-items:center; gap:.38rem; font-family:"JetBrains Mono"; font-size:.66rem;
+    color:var(--ink-faint); border:1px solid var(--line); padding:.28rem .55rem; border-radius:100px; }
+  .lg i{ width:8px; height:8px; border-radius:2px; display:block; }
+  .lg .ln{ width:15px; height:0; border-top:2px solid var(--ink-faint); }
+  .lg .ln.d{ border-top-style:dashed; }
+
+  footer{ max-width:1560px; margin:1.9rem auto 0; padding:1.25rem 1.75rem 3.4rem;
+    border-top:1px solid var(--line); font-family:"JetBrains Mono"; font-size:.7rem;
+    line-height:1.75; color:var(--ink-faint); }
+  footer a{ color:var(--ink-faint); } footer a:hover{ color:var(--store); }
+  footer .note{ font-family:"Source Sans 3"; font-size:.82rem; margin:0 0 .65rem; max-width:82ch; line-height:1.6; }
+  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="1.8"/><path d="M2.5 19h19" stroke-linecap="round"/></symbol>
+  <symbol id="i-dns" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M3.6 12h16.8M12 3.6c2.2 2.4 3.3 5.3 3.3 8.4s-1.1 6-3.3 8.4c-2.2-2.4-3.3-5.3-3.3-8.4S9.8 6 12 3.6z"/></symbol>
+  <symbol id="i-gfe" viewBox="0 0 24 24"><path d="M12 3l7.5 3.2v5.5c0 4.6-3.1 7.8-7.5 9.3-4.4-1.5-7.5-4.7-7.5-9.3V6.2L12 3z" stroke-linejoin="round"/><path d="M12 9v3.5" stroke-linecap="round"/><circle cx="12" cy="15.4" r=".9" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-api" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M3 9h18" /><path d="M8.5 13l-2 2.2 2 2.2M15.5 13l2 2.2-2 2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.6 16.4c.7-1.5 2-2.3 3.4-2.3s2.7.8 3.4 2.3" stroke-linecap="round"/><path d="M15 10h4M15 13.5h4" stroke-linecap="round"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v2.5A2.5 2.5 0 006.5 21h11a2.5 2.5 0 002.5-2.5V16" stroke-linecap="round"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.2"/><path d="M12 6.8V3.5M12 17.2v3.3M17.2 12h3.3M3.5 12h3.3M15.7 8.3L18 6M6 18l2.3-2.3M15.7 15.7L18 18M6 6l2.3 2.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-dlp" viewBox="0 0 24 24"><path d="M11 3.5h6.5a3 3 0 013 3V13l-9.5 9.5L2.5 13 11 3.5z" stroke-linejoin="round"/><circle cx="16" cy="8" r="1.3" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-log" viewBox="0 0 24 24"><path d="M5 4.5A1.5 1.5 0 016.5 3H18a1.5 1.5 0 011.5 1.5v15L15 17l-4.5 2.5L6 17l-1 2.5V4.5z" stroke-linejoin="round"/><path d="M9 8h6M9 11.5h6" stroke-linecap="round"/></symbol>
+  <symbol id="i-chunk" viewBox="0 0 24 24"><rect x="3" y="3.5" width="7.5" height="7.5" rx="1.4"/><rect x="13.5" y="3.5" width="7.5" height="7.5" rx="1.4"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.4"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.4"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4.2"/><path d="M12 12h9M18 12v3.5M15.5 12v2.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-disk" viewBox="0 0 24 24"><ellipse cx="12" cy="6.5" rx="8" ry="3.2"/><path d="M4 6.5v11c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2v-11"/><path d="M4 12c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="6" rx="1.6"/><rect x="3.5" y="14" width="17" height="6" rx="1.6"/><circle cx="7.5" cy="7" r=".8" fill="currentColor" stroke="none"/><circle cx="7.5" cy="17" r=".8" fill="currentColor" stroke="none"/></symbol>
+</defs></svg>
+
+<div class="hero">
+  <div class="eyebrow">Google Drive &middot; the write path</div>
+  <h1>Anatomy of an Upload</h1>
+  <p>The real topology behind one file upload: thirteen calls across four trust boundaries. Step the request through the system and watch where it is encrypted, who is asked for permission, and what happens at each point where it can be refused.</p>
+</div>
+
+<div class="toolbar">
+  <button class="tbtn" id="b-prev" disabled>&larr;</button>
+  <button class="tbtn play" id="b-play">&#9654; Play request</button>
+  <button class="tbtn" id="b-next">&rarr;</button>
+  <button class="tbtn" id="b-reset">Reset</button>
+  <span class="tb-step" id="stepct">step <b>&mdash;</b> / 13</span>
+  <div class="tb-sep"></div>
+  <button class="tbtn" id="t-threat" aria-pressed="false" style="--tcol:var(--threat);--tsoft:rgba(242,104,92,.12)"><span class="sw"></span>Threats</button>
+  <button class="tbtn" id="t-fail" aria-pressed="false" style="--tcol:var(--threat);--tsoft:rgba(242,104,92,.12)"><span class="sw"></span>Rejection paths</button>
+  <button class="tbtn" id="t-data" aria-pressed="false" style="--tcol:var(--store);--tsoft:rgba(34,211,238,.12)"><span class="sw"></span>Data state</button>
+  <div class="tb-sep"></div>
+  <button class="tbtn" id="t-fit">Fit</button>
+  <button class="tbtn" id="t-out">&minus;</button>
+  <button class="tbtn" id="t-in">+</button>
+</div>
+
+<div class="stage">
+  <div class="viewport" id="viewport">
+    <div class="sizer" id="sizer"><div class="canvas" id="canvas"><svg id="wire"></svg></div></div>
+  </div>
+
+  <aside class="panel" id="panel">
+    <div class="p-empty" id="p-empty">
+      <b>Play the request, or click any component.</b><br><br>
+      Thirteen numbered calls carry one file from a browser to encrypted chunks on disk. The dashed containers are trust boundaries &mdash; every time an arrow crosses one, something has to re-establish trust, and the lock badge on the arrow names what does it.<br><br>
+      The three toggles lift the security layers onto the map: what each component is attacked with, where a request can be turned away, and what your file physically is on each wire.
+    </div>
+    <div id="p-body" hidden>
+      <div class="p-kick"><span class="p-tag" id="p-tag"></span><span class="p-n" id="p-n"></span></div>
+      <h2 id="p-title"></h2>
+      <div class="p-sub" id="p-sub"></div>
+      <p class="p-body" id="p-what"></p>
+      <div class="p-sec" id="s-pr"><span class="p-t">Principles at work</span><div class="p-pr" id="p-pr"></div></div>
+      <div class="p-sec" id="s-th"><span class="p-t">Threat it answers</span><div class="p-th" id="p-th"></div><p class="p-x" id="p-thd"></p></div>
+      <div class="p-sec" id="s-fl"><span class="p-t">If it refuses</span><p class="p-x" id="p-fl"></p></div>
+      <div class="p-sec" id="s-st"><span class="p-t">Your file on this hop</span><p class="p-st" id="p-st"></p></div>
+    </div>
+  </aside>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<footer>
+  <p class="note">Built from Google's public security documentation. Client-side encryption and DLP are Google&nbsp;Workspace enterprise features, not consumer Drive. Component names reflect Google's published architecture; exact internal call ordering is not public, so the sequence is a faithful reading rather than documented ground truth.</p>
+  Sources:
+  <a href="https://cloud.google.com/docs/security/infrastructure/design" target="_blank" rel="noopener">Infrastructure Security Design Overview</a> &middot;
+  <a href="https://cloud.google.com/docs/security/encryption/default-encryption" target="_blank" rel="noopener">Default Encryption at Rest</a> &middot;
+  <a href="https://cloud.google.com/docs/security/encryption-in-transit/application-layer-transport-security" target="_blank" rel="noopener">Application Layer Transport Security</a> &middot;
+  <a href="https://workspace.google.com/learn-more/security/security-whitepaper/page-1/" target="_blank" rel="noopener">Google Workspace Security Whitepaper</a>
+</footer>
+
+<script>
+(function(){
+  const C={ client:"#7C93B8", net:"#4C8DFF", idn:"#A78BFA", app:"#34D399",
+            safe:"#F5A524", store:"#22D3EE", audit:"#C08457", threat:"#F2685C",
+            faint:"#5A6479", strong:"#2A3446", bg:"#080B11" };
+  const soft=(h,a)=>{ const n=parseInt(h.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; };
+
+  const ZONES=[
+    { x:24,  w:232, label:"Public internet", c:C.client },
+    { x:276, w:246, label:"Google edge", c:C.net },
+    { x:542, w:638, label:"Google production network", c:C.app },
+    { x:1200,w:356, label:"Storage plane", c:C.store }
+  ];
+  const ZY=52, ZH=776;
+
+  const N={
+    A:{x:138, y:400, c:C.client, ic:"i-laptop", nm:"Browser / Drive client", sb:"your device",
+       role:"Client",
+       what:"Reads the file locally and opens the connection. Everything before this point is the browser's security model, not Google's — the origin sandbox and Content Security Policy decide what code is even allowed to touch your file.",
+       pr:["Same-origin policy","Content Security Policy"],
+       th:"Hostile script on the page", thd:"A cross-site script could read the file or redirect the upload before it ever leaves. The origin model keeps foreign code out of the page holding your data.",
+       fl:"If CSP blocks the script or the origin can't be verified, nothing is ever sent." },
+    B:{x:396, y:186, c:C.net, ic:"i-dns", nm:"DNS + Anycast", sb:"resolve & route",
+       role:"Edge",
+       what:"Resolves the Drive hostname and hands back an anycast address, which routes you to the nearest of Google's many edge locations rather than a single origin server.",
+       pr:["Availability","Geographic distribution"],
+       th:"DNS spoofing", thd:"A forged DNS answer would point you at an attacker's server. This is exactly why the next step authenticates the server by certificate rather than trusting the address it was given.",
+       fl:"A wrong or hijacked answer is caught at the TLS step, when the certificate fails to match." },
+    C:{x:396, y:400, c:C.net, ic:"i-gfe", nm:"Google Front End", sb:"TLS termination · DoS",
+       role:"Edge",
+       what:"The GFE terminates TLS with a validated certificate and perfect forward secrecy, and absorbs volumetric attacks at the edge. This is the outer wall: the public internet ends here.",
+       pr:["Encryption in transit","Forward secrecy","Rate limiting","Fail secure"],
+       th:"MITM and DDoS", thd:"Authenticated TLS defeats anyone reading or altering the file in flight; a global anycast edge means a flood never concentrates on one origin.",
+       fl:"Certificate mismatch or a downgrade attempt ends the connection. Abusive traffic is throttled or dropped here and never reaches Drive." },
+    D:{x:652, y:400, c:C.app, ic:"i-api", nm:"Drive API frontend", sb:"request routing",
+       role:"Application",
+       what:"Receives the forwarded request inside Google's network and orchestrates it. It trusts nothing about the request just because it arrived internally — it goes and asks Identity.",
+       pr:["Zero trust","Separation of duties"],
+       th:"Implicit network trust", thd:"The classic failure is treating 'inside the perimeter' as 'authenticated'. Every internal call here is mutually authenticated over ALTS and independently authorized.",
+       fl:"An unroutable or malformed request is rejected before any file handling begins." },
+    E:{x:652, y:186, c:C.idn, ic:"i-id", nm:"Identity & OAuth", sb:"authn + scopes",
+       role:"Identity",
+       what:"Verifies the account session or OAuth access token on this specific request, and returns the caller's identity along with the scopes it was actually granted.",
+       pr:["Zero trust","Authentication","Least privilege","Fail secure"],
+       th:"Stolen token or replayed session", thd:"A leaked bearer token impersonates you completely, so lifetimes are short and tokens are bound; narrow scopes like drive.file confine an app to only the files it created.",
+       fl:"Missing, expired, or invalid credential → 401, and the upload stops before a byte is stored." },
+    F:{x:872, y:400, c:C.app, ic:"i-up", nm:"Upload service", sb:"resumable · validate · quota",
+       role:"Application",
+       what:"Issues an unguessable, short-lived session URI and accepts the file in chunks, checking size, type, checksum, and storage quota as they arrive. It is the fan-out point for everything downstream.",
+       pr:["Input validation","Integrity","Resource limits","Capability binding"],
+       th:"Malformed input and session URI leakage", thd:"Oversized or malformed uploads are used to exhaust storage or crash downstream parsers; a leaked upload URI would let someone write into your session, so it is bound to the identity that opened it.",
+       fl:"403 on quota or insufficient scope; a checksum mismatch re-requests the chunk; an expired session URI returns 410." },
+    G:{x:1080,y:206, c:C.safe, ic:"i-scan", nm:"Malware scanning", sb:"content inspection",
+       role:"Content safety",
+       what:"Scans the content against Google's malware signals before the file can be shared or downloaded, including for files shared inside an organization.",
+       pr:["Defense in depth","Containment","Assume breach"],
+       th:"Drive as a delivery channel", thd:"Attackers upload a payload and share the link, borrowing the trust in a google.com domain to slip past filters that would block an unknown host.",
+       fl:"Detected malware is blocked from sharing and download, and flagged to the owner and admins." },
+    H:{x:1080,y:576, c:C.safe, ic:"i-dlp", nm:"DLP engine", sb:"classify · label · enforce",
+       role:"Content safety",
+       what:"For Workspace organizations, inspects content against policy — card numbers, credentials, regulated data — and applies labels that govern how the file may be shared.",
+       pr:["Data governance","Least privilege","Auditability"],
+       th:"Exfiltration and accidental exposure", thd:"Sensitive data leaving through a personal account or a public link, far more often carelessness than malice — which is why it is enforced by policy rather than trust.",
+       fl:"A violation can block the upload, strip sharing, or quarantine the file, and raises an admin alert." },
+    I:{x:872, y:660, c:C.audit, ic:"i-log", nm:"Audit log", sb:"who did what, when",
+       role:"Observability",
+       what:"Records the access and admin activity behind the upload, so the entire path above can be reconstructed after the fact.",
+       pr:["Auditability","Non-repudiation","Detect and respond"],
+       th:"Undetected compromise", thd:"Prevention eventually fails. Logging is what turns a silent breach into a detectable, reconstructable event — the assumption is not if, but when.",
+       fl:"Logging is write-path independent: it records the refusal too, so blocked attempts are as visible as successful ones." },
+    J:{x:1290,y:400, c:C.store, ic:"i-chunk", nm:"Chunk + encrypt", sb:"per-chunk DEK · AES-256",
+       role:"Storage",
+       what:"Splits the file into chunks and encrypts each one under its own data encryption key, then spreads them across the storage fleet. No single key opens the whole file.",
+       pr:["Encryption at rest","Blast-radius reduction","Isolation"],
+       th:"Bulk data compromise", thd:"Because each chunk carries a different key and the chunks are scattered, reaching the storage layer yields fragments rather than files.",
+       fl:"If a key cannot be generated or a chunk fails its integrity check, that chunk is never committed." },
+    K:{x:1290,y:186, c:C.store, ic:"i-key", nm:"Keystore (KEK)", sb:"key hierarchy",
+       role:"Storage",
+       what:"Holds the key encryption keys centrally. Each data key is wrapped by a KEK and stored beside its chunk, so data and the authority to read it are deliberately kept apart.",
+       pr:["Key hierarchy","Separation of duties","Fail closed","Auditability"],
+       th:"Key compromise and insider access", thd:"Holding keys apart from data means access to storage is not access to content — every unwrap is a separate authorization decision that is checked and recorded.",
+       fl:"If Keystore denies the unwrap, the service simply cannot read the data. Access fails closed rather than open." },
+    L:{x:1450,y:600, c:C.store, ic:"i-disk", nm:"Colossus", sb:"durable chunk storage",
+       role:"Storage",
+       what:"Google's distributed file system stores the encrypted chunks with redundancy across machines and failure domains.",
+       pr:["Durability","Redundancy","Encryption at rest"],
+       th:"Physical media compromise", thd:"A stolen or improperly retired disk yields only encrypted fragments of many different files, each under a different key.",
+       fl:"A failed write is retried elsewhere; the commit is not acknowledged until durability is satisfied." },
+    M:{x:1450,y:296, c:C.store, ic:"i-db", nm:"Metadata store", sb:"filename · ACL · pointers",
+       role:"Storage",
+       what:"Commits the file's metadata — name, owner, permissions, and the map of where its chunks live. This is the record every future access check is decided against.",
+       pr:["Access control","Integrity","Consistency"],
+       th:"ACL tampering", thd:"Permissions are the real gate on every later read, so the metadata record is as security-critical as the bytes themselves — corrupt it and the file is readable by the wrong people.",
+       fl:"If the metadata commit fails, the upload is not acknowledged and the orphaned chunks are reclaimed." }
+  };
+
+  // steps: from, to, label, kind, boundary lock, security narrative
+  const STEPS=[
+    {f:"A",t:"B",l:"resolve host",k:"call",
+     ti:"DNS resolution", sub:"client → DNS / anycast",
+     what:"The client resolves the Drive hostname and is routed to the nearest edge. Note what this step does NOT establish: nothing here proves the address it got back is genuinely Google.",
+     pr:["Availability"], th:"DNS spoofing",
+     thd:"A forged answer sends you to an attacker. The architecture's answer is not to trust DNS at all — the very next step authenticates the server cryptographically.",
+     fl:"A hijacked answer survives this step and is caught at TLS instead.", st:"still on your disk"},
+
+    {f:"A",t:"C",l:"file bytes",k:"main",lock:"TLS 1.3",
+     ti:"TLS 1.3 handshake", sub:"client → Google Front End",
+     what:"The client authenticates the server by certificate and negotiates an encrypted channel, then streams the file. This arrow crosses the first trust boundary: the public internet ends at the GFE.",
+     pr:["Encryption in transit","Forward secrecy","Fail secure"], th:"Man-in-the-middle",
+     thd:"On an untrusted network anyone on the path could read or alter the file. Certificate validation stops impersonation; forward secrecy means a key stolen tomorrow cannot decrypt today's upload.",
+     fl:"Certificate mismatch or a downgrade attempt ends the connection before any file data is sent.", st:"TLS ciphertext"},
+
+    {f:"C",t:"D",l:"forward request",k:"main",lock:"ALTS",
+     ti:"Edge to production", sub:"GFE → Drive API frontend",
+     what:"Having absorbed abuse and terminated TLS, the GFE forwards the request into Google's production network — re-encrypted and mutually authenticated with ALTS, because the internal network is not treated as safe either.",
+     pr:["Defense in depth","Zero trust","Rate limiting"], th:"DDoS and implicit network trust",
+     thd:"Two things happen here: volumetric abuse is filtered before it reaches the application, and the internal hop is authenticated rather than assumed — the perimeter is not the security model.",
+     fl:"Traffic scored as abusive is throttled or dropped at the edge and never reaches Drive.", st:"ALTS between services"},
+
+    {f:"D",t:"E",l:"validate token",k:"call",
+     ti:"Authenticate the caller", sub:"Drive API → Identity",
+     what:"The frontend asks Identity to verify the session or OAuth token on this request. Arriving from inside the network buys the request nothing — it is authenticated on its own merits.",
+     pr:["Zero trust","Authentication"], th:"Stolen token or replayed session",
+     thd:"A leaked bearer token impersonates you completely, so lifetimes are short, tokens are bound, and sensitive actions force re-authentication.",
+     fl:"Missing, expired, or invalid credential → 401, and the upload stops here.", st:"in memory, unstored"},
+
+    {f:"E",t:"D",l:"identity + scopes",k:"ret",
+     ti:"Authorization decision", sub:"Identity → Drive API",
+     what:"Identity returns who the caller is and what scopes they hold. Authentication settled identity; this return value is what settles permission — the scope must actually allow creating files, and the target folder's ACL must allow this user to write.",
+     pr:["Least privilege","Separation of duties"], th:"Over-privileged app / confused deputy",
+     thd:"A third-party integration with broad access could write anywhere in your Drive. Narrow scopes such as drive.file confine an app to only the files it created itself.",
+     fl:"Insufficient scope or no write permission on the destination → 403, and nothing is stored.", st:"authorized, unwritten"},
+
+    {f:"D",t:"F",l:"open session",k:"main",
+     ti:"Resumable upload session", sub:"Drive API → Upload service",
+     what:"The upload service issues a short-lived, unguessable session URI and accepts the file in chunks, validating size, type, checksum, and quota as they arrive.",
+     pr:["Input validation","Integrity","Resource limits"], th:"Malformed input and resource exhaustion",
+     thd:"Oversized or deliberately malformed uploads are used to exhaust storage or crash whatever parses them downstream. Explicit limits contain both before the file travels further.",
+     fl:"403 on quota; a checksum mismatch re-requests the chunk; an expired session URI returns 410.", st:"plaintext, staged"},
+
+    {f:"F",t:"G",l:"scan content",k:"call",
+     ti:"Malware scanning", sub:"Upload service → scanner",
+     what:"Content is scanned against Google's malware signals before the file can be shared or served to anyone.",
+     pr:["Defense in depth","Containment"], th:"Drive as a malware delivery channel",
+     thd:"Attackers upload a payload and share the link, borrowing the reputation of a google.com domain to get past filters that would block an unknown host.",
+     fl:"Detected malware is blocked from sharing and download, and flagged to the owner and admins.", st:"plaintext, under inspection"},
+
+    {f:"F",t:"H",l:"classify",k:"call",
+     ti:"DLP classification", sub:"Upload service → DLP engine",
+     what:"For organizations, policy inspects the content and applies labels that govern how it may be shared — before it becomes shareable at all.",
+     pr:["Data governance","Least privilege","Auditability"], th:"Exfiltration and accidental exposure",
+     thd:"Sensitive data leaving through a personal account or a public link. Enforced by policy precisely because it is usually carelessness rather than malice.",
+     fl:"A violation can block the upload, strip sharing, or quarantine the file, raising an admin alert.", st:"classified + labeled"},
+
+    {f:"F",t:"J",l:"stream chunks",k:"main",lock:"ALTS",
+     ti:"Into the storage plane", sub:"Upload service → chunker",
+     what:"The accepted file crosses the last trust boundary into storage, where it is split into chunks and each chunk is encrypted under its own key.",
+     pr:["Encryption at rest","Blast-radius reduction","Isolation"], th:"Bulk data compromise",
+     thd:"One key per chunk, chunks scattered across the fleet: compromising storage yields fragments, not files.",
+     fl:"If a chunk fails its integrity check it is never committed.", st:"chunked + encrypted"},
+
+    {f:"J",t:"K",l:"wrap DEK",k:"call",
+     ti:"Key wrapping", sub:"chunker → Keystore",
+     what:"Each data encryption key is sent to Keystore to be wrapped by a key encryption key, and the wrapped result is stored beside its chunk. Data and the authority to read it live in different systems.",
+     pr:["Key hierarchy","Separation of duties","Fail closed"], th:"Key compromise and insider access",
+     thd:"Because every unwrap is a separate authorization decision that is checked and logged, reaching the storage system is not the same as reaching the content.",
+     fl:"If Keystore denies the unwrap, the service cannot read the data — access fails closed.", st:"key wrapped separately"},
+
+    {f:"J",t:"L",l:"write chunks",k:"main",cside:-1,
+     ti:"Durable write", sub:"chunker → Colossus",
+     what:"Encrypted chunks are written across machines and failure domains with redundancy, and the write is only acknowledged once durability is satisfied.",
+     pr:["Durability","Redundancy","Encryption at rest"], th:"Physical media compromise",
+     thd:"A stolen or improperly retired disk holds encrypted fragments of many different files, each under a different key — physical access alone buys almost nothing.",
+     fl:"A failed write is retried on other machines before the upload is acknowledged.", st:"encrypted at rest"},
+
+    {f:"F",t:"M",l:"commit metadata",k:"main",
+     ti:"Metadata commit", sub:"Upload service → metadata store",
+     what:"Name, owner, permissions, and the map of where the chunks live are committed. This record is what every future access check will be decided against.",
+     pr:["Access control","Integrity","Consistency"], th:"ACL tampering",
+     thd:"Permissions are the real gate on every later read, which makes this record as security-critical as the bytes — corrupt it and the right file reaches the wrong people.",
+     fl:"If the commit fails the upload is not acknowledged, and the orphaned chunks are reclaimed.", st:"stored + permissioned"},
+
+    {f:"F",t:"I",l:"audit event",k:"call",
+     ti:"Audit logging", sub:"Upload service → audit log",
+     what:"The action is recorded — who uploaded what, when, from where. This runs whether the upload succeeded or was refused.",
+     pr:["Auditability","Non-repudiation","Detect and respond"], th:"Undetected compromise",
+     thd:"Every control above can eventually fail. Logging is what makes a breach detectable and reconstructable instead of silent — the design assumption is not if, but when.",
+     fl:"Refusals are logged too, so blocked attempts are as visible as successful ones.", st:"recorded as an event"}
+  ];
+
+  // threats pinned to components, rejection paths pinned to components
+  const TCHIP={ A:"XSS / hostile page", C:"MITM · DDoS", E:"stolen token", F:"malformed input",
+                G:"malware upload", H:"data exfiltration", K:"insider / key compromise",
+                L:"media theft", M:"ACL tampering" };
+  const REJECT={ C:["dropped — abuse",0,86], E:["401 unauthenticated",0,80], F:["403 scope / quota",0,86],
+                 G:["blocked — malware",0,74], H:["quarantined — policy",0,80], K:["fail closed",0,74] };
+
+  const W=1580,H=880;
+  const canvas=document.getElementById("canvas"), wire=document.getElementById("wire");
+  wire.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const NS="http://www.w3.org/2000/svg";
+  const mk=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+  const defs=mk("defs",{}); wire.appendChild(defs);
+
+  // zones
+  ZONES.forEach(z=>{
+    wire.appendChild(mk("rect",{x:z.x,y:ZY,width:z.w,height:ZH,rx:14,fill:soft(z.c,.032),
+      stroke:soft(z.c,.42),"stroke-width":1.2,"stroke-dasharray":"7 5"}));
+    const t=mk("text",{x:z.x+14,y:ZY+20,class:"zone-label",fill:soft(z.c,.85)});
+    t.textContent=z.label; wire.appendChild(t);
+  });
+
+  const BW=158,BH=68;
+  function anchor(n,tx,ty){
+    const dx=tx-n.x, dy=ty-n.y, hw=BW/2+7, hh=BH/2+7;
+    const sx=dx===0?1e9:hw/Math.abs(dx), sy=dy===0?1e9:hh/Math.abs(dy);
+    const s=Math.min(sx,sy);
+    return {x:n.x+dx*s, y:n.y+dy*s};
+  }
+
+  const edgeEls=[], numEls=[], lockEls=[], dchips=[];
+  STEPS.forEach((s,i)=>{
+    const a=N[s.f], b=N[s.t];
+    const col = s.k==="ret" ? C.idn : b.c;
+    const bow = s.k==="ret" ? 26 : 0;
+    const p1=anchor(a,b.x,b.y), p2=anchor(b,a.x,a.y);
+    const mx=(p1.x+p2.x)/2, my=(p1.y+p2.y)/2;
+    const dx=p2.x-p1.x, dy=p2.y-p1.y, len=Math.hypot(dx,dy)||1;
+    const nx=-dy/len, ny=dx/len;
+    const cx=mx+nx*bow, cy=my+ny*bow;
+    const d = bow ? `M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}` : `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+
+    const mid=mk("marker",{id:`ah${i}`,viewBox:"0 0 10 10",refX:"9",refY:"5",
+      markerWidth:"6",markerHeight:"6",orient:"auto-start-reverse"});
+    mid.appendChild(mk("path",{d:"M 0 0 L 10 5 L 0 10 z",fill:col}));
+    defs.appendChild(mid);
+
+    const path=mk("path",{class:"ed "+s.k,d,stroke:col,"marker-end":`url(#ah${i})`});
+    wire.appendChild(path); edgeEls.push(path);
+
+    // number badge
+    const bx = bow ? (p1.x+2*cx+p2.x)/4 : mx;
+    const by = bow ? (p1.y+2*cy+p2.y)/4 : my;
+    const g=mk("g",{class:"num"});
+    g.appendChild(mk("circle",{cx:bx,cy:by,r:10,stroke:col}));
+    const tn=mk("text",{x:bx,y:by+3.5,fill:col}); tn.textContent=i+1;
+    g.appendChild(tn); wire.appendChild(g); numEls.push(g);
+
+    // edge label
+    const lw=s.l.length*5.6+12;
+    const side = s.cside || (s.k==="ret" ? -1 : 1);
+    const off = (Math.abs(dy)>Math.abs(dx)) ? {x:34*side,y:0} : {x:0,y:-19};
+    wire.appendChild(mk("rect",{x:bx+off.x-lw/2,y:by+off.y-8,width:lw,height:15,rx:7,class:"edge-pill"}));
+    const tl=mk("text",{x:bx+off.x,y:by+off.y+3.2,class:"edge-label","text-anchor":"middle"});
+    tl.textContent=s.l; wire.appendChild(tl);
+
+    // boundary lock badge
+    if(s.lock){
+      const lx=bx, ly=by+(Math.abs(dy)>Math.abs(dx)?0:20), lwd=s.lock.length*6+20;
+      const gl=mk("g",{class:"lockpill"});
+      gl.appendChild(mk("rect",{x:lx-lwd/2,y:ly+6,width:lwd,height:16,rx:8,stroke:col}));
+      const tt=mk("text",{x:lx,y:ly+17.2,fill:col}); tt.textContent="🔒 "+s.lock;
+      gl.appendChild(tt); wire.appendChild(gl); lockEls.push(gl);
+    }
+
+    // data-state chip on the wire
+    if(s.st){
+      const dc=document.createElement("div");
+      dc.className="dchip"; dc.textContent=s.st;
+      const dy2 = off.y ? -16 : (s.k==="ret" ? -32 : 32);
+      dc.style.left=(bx+off.x)+"px"; dc.style.top=(by+off.y+dy2)+"px";
+      canvas.appendChild(dc); dchips.push(dc);
+    }
+  });
+
+  // rejection paths
+  const failEls=[];
+  Object.entries(REJECT).forEach(([id,[txt,dxr,dyr]])=>{
+    const n=N[id]; const sx=n.x, sy=n.y+BH/2+4, ey=sy+dyr;
+    const g=mk("g",{class:"fail"});
+    g.appendChild(mk("path",{d:`M ${sx} ${sy} V ${ey-12}`}));
+    g.appendChild(mk("circle",{cx:sx,cy:ey-2,r:8,fill:C.bg,stroke:C.threat,"stroke-width":1.3}));
+    g.appendChild(mk("path",{d:`M ${sx-3} ${ey-5} L ${sx+3} ${ey+1} M ${sx+3} ${ey-5} L ${sx-3} ${ey+1}`,"stroke-width":1.5,"stroke-linecap":"round"}));
+    const t=mk("text",{x:sx,y:ey+20,"text-anchor":"middle"}); t.textContent=txt;
+    g.appendChild(t); wire.appendChild(g); failEls.push(g);
+  });
+
+  // component boxes + threat chips
+  const boxEls={}, tchips=[];
+  Object.entries(N).forEach(([id,n])=>{
+    const el=document.createElement("button");
+    el.className="box"; el.style.left=n.x+"px"; el.style.top=n.y+"px";
+    el.style.setProperty("--c",n.c); el.style.setProperty("--cs",soft(n.c,.16));
+    el.innerHTML=`<svg class="ic"><use href="#${n.ic}"/></svg>
+      <div class="nm">${n.nm}</div><div class="sb">${n.sb}</div>`;
+    el.addEventListener("click",e=>{ e.stopPropagation(); showNode(id); });
+    canvas.appendChild(el); boxEls[id]=el;
+
+    if(TCHIP[id]){
+      const tc=document.createElement("div");
+      tc.className="tchip"; tc.textContent=TCHIP[id];
+      tc.style.left=n.x+"px"; tc.style.top=(n.y-BH/2-22)+"px";
+      canvas.appendChild(tc); tchips.push(tc);
+    }
+  });
+
+  /* ---------- panel ---------- */
+  const g=id=>document.getElementById(id);
+  const pEmpty=g("p-empty"), pBody=g("p-body"), panel=g("panel");
+  function fill(o){
+    pEmpty.hidden=true; pBody.hidden=false;
+    panel.style.setProperty("--pc",o.c); panel.style.setProperty("--ps",soft(o.c,.15));
+    g("p-tag").textContent=o.tag; g("p-n").textContent=o.n||"";
+    g("p-title").textContent=o.title; g("p-sub").textContent=o.sub;
+    g("p-what").textContent=o.what;
+    g("p-pr").innerHTML=(o.pr||[]).map(x=>`<span>${x}</span>`).join("");
+    g("s-pr").classList.toggle("hide",!(o.pr&&o.pr.length));
+    g("p-th").textContent=o.th||""; g("p-thd").textContent=o.thd||"";
+    g("s-th").classList.toggle("hide",!o.th);
+    g("p-fl").textContent=o.fl||""; g("s-fl").classList.toggle("hide",!o.fl);
+    g("p-st").textContent=o.st||""; g("s-st").classList.toggle("hide",!o.st);
+  }
+
+  let cur=-1;
+  function clearHot(){
+    edgeEls.forEach(e=>e.classList.remove("hot","dim"));
+    numEls.forEach(e=>e.classList.remove("dim"));
+    Object.values(boxEls).forEach(b=>b.classList.remove("hot","dim","sel"));
+  }
+  function showStep(i){
+    cur=i; const s=STEPS[i];
+    clearHot();
+    edgeEls.forEach((e,j)=>{ if(j!==i) e.classList.add("dim"); else e.classList.add("hot"); });
+    numEls.forEach((e,j)=>{ if(j!==i) e.classList.add("dim"); });
+    Object.keys(boxEls).forEach(id=>{
+      if(id===s.f||id===s.t) boxEls[id].classList.add("hot");
+      else boxEls[id].classList.add("dim");
+    });
+    fill({c:N[s.t].c, tag:"Step "+(i+1), n:`${i+1} of ${STEPS.length}`, title:s.ti, sub:s.sub,
+          what:s.what, pr:s.pr, th:s.th, thd:s.thd, fl:s.fl, st:s.st});
+    g("stepct").innerHTML=`step <b>${i+1}</b> / ${STEPS.length}`;
+    g("b-prev").disabled=i===0; g("b-next").disabled=i===STEPS.length-1;
+    reveal(N[s.t]);
+  }
+  function showNode(id){
+    stop(); cur=-1; const n=N[id];
+    clearHot();
+    Object.keys(boxEls).forEach(k=>{ if(k!==id) boxEls[k].classList.add("dim"); });
+    boxEls[id].classList.add("sel");
+    edgeEls.forEach((e,j)=>{ const s=STEPS[j];
+      if(s.f===id||s.t===id) e.classList.add("hot"); else { e.classList.add("dim"); numEls[j].classList.add("dim"); } });
+    fill({c:n.c, tag:n.role, n:"", title:n.nm, sub:n.sb, what:n.what, pr:n.pr, th:n.th, thd:n.thd, fl:n.fl});
+    g("stepct").innerHTML=`step <b>&mdash;</b> / ${STEPS.length}`;
+  }
+  function reset(){
+    stop(); cur=-1; clearHot();
+    pEmpty.hidden=false; pBody.hidden=true;
+    g("stepct").innerHTML=`step <b>&mdash;</b> / ${STEPS.length}`;
+    g("b-prev").disabled=true; g("b-next").disabled=false;
+  }
+
+  /* ---------- play ---------- */
+  let timer=null;
+  function stop(){ if(timer){ clearInterval(timer); timer=null; g("b-play").innerHTML="&#9654; Play request"; } }
+  function play(){
+    if(timer){ stop(); return; }
+    if(cur>=STEPS.length-1) cur=-1;
+    g("b-play").innerHTML="&#10073;&#10073; Pause";
+    showStep(cur+1);
+    timer=setInterval(()=>{
+      if(cur>=STEPS.length-1){ stop(); return; }
+      showStep(cur+1);
+    },1900);
+  }
+  g("b-play").addEventListener("click",play);
+  g("b-next").addEventListener("click",()=>{ stop(); showStep(Math.min(STEPS.length-1,cur+1)); });
+  g("b-prev").addEventListener("click",()=>{ stop(); if(cur>0) showStep(cur-1); });
+  g("b-reset").addEventListener("click",reset);
+  document.addEventListener("keydown",e=>{
+    if(e.target instanceof Element && e.target.matches("input,textarea")) return;
+    if(e.key==="ArrowRight"){ stop(); showStep(Math.min(STEPS.length-1,cur+1)); }
+    else if(e.key==="ArrowLeft"){ stop(); if(cur>0) showStep(cur-1); }
+    else if(e.key==="Escape"){ reset(); }
+  });
+
+  /* ---------- toggles ---------- */
+  function tg(id,fn){ const b=g(id);
+    b.addEventListener("click",()=>{ const on=b.getAttribute("aria-pressed")!=="true";
+      b.setAttribute("aria-pressed",on?"true":"false"); fn(on); }); }
+  tg("t-threat",on=>tchips.forEach(c=>c.classList.toggle("on",on)));
+  tg("t-fail",  on=>failEls.forEach(e=>e.classList.toggle("on",on)));
+  tg("t-data",  on=>dchips.forEach(c=>c.classList.toggle("on",on)));
+
+  /* ---------- zoom / pan ---------- */
+  const vp=g("viewport"), sizer=g("sizer");
+  let scale=1;
+  function setScale(s,keep){
+    const prev=scale; scale=Math.min(1.6,Math.max(.35,s));
+    const cx=(vp.scrollLeft+vp.clientWidth/2)/prev, cy=(vp.scrollTop+vp.clientHeight/2)/prev;
+    canvas.style.transform=`scale(${scale})`;
+    sizer.style.width=(W*scale)+"px"; sizer.style.height=(H*scale)+"px";
+    if(keep){ vp.scrollLeft=cx*scale-vp.clientWidth/2; vp.scrollTop=cy*scale-vp.clientHeight/2; }
+  }
+  function fit(){
+    vp.style.height=""; vp.style.minHeight="";   // measure against the CSS height, so repeat calls don't drift
+    const full=vp.clientHeight;
+    setScale(Math.min((vp.clientWidth-20)/W,(full-20)/H),false);
+    const h=Math.round(Math.min(full,H*scale+22));                // drop dead space below a short diagram
+    vp.style.height=h+"px"; vp.style.minHeight=h+"px";
+    vp.scrollTo({left:0,top:0});
+  }
+  function reveal(n){
+    const x=n.x*scale, y=n.y*scale, pad=130;
+    let l=vp.scrollLeft, t=vp.scrollTop;
+    if(x-pad<l) l=Math.max(0,x-pad); else if(x+pad>l+vp.clientWidth) l=x+pad-vp.clientWidth;
+    if(y-pad<t) t=Math.max(0,y-pad); else if(y+pad>t+vp.clientHeight) t=y+pad-vp.clientHeight;
+    vp.scrollTo({left:l,top:t,behavior:"smooth"});
+  }
+  g("t-fit").addEventListener("click",fit);
+  g("t-in").addEventListener("click",()=>setScale(scale*1.2,true));
+  g("t-out").addEventListener("click",()=>setScale(scale/1.2,true));
+
+  let pan=false,px=0,py=0,pl=0,pt=0;
+  vp.addEventListener("mousedown",e=>{ if(e.target.closest(".box")) return;
+    pan=true;px=e.clientX;py=e.clientY;pl=vp.scrollLeft;pt=vp.scrollTop;vp.classList.add("is-panning"); });
+  window.addEventListener("mousemove",e=>{ if(!pan)return; vp.scrollLeft=pl-(e.clientX-px); vp.scrollTop=pt-(e.clientY-py); });
+  window.addEventListener("mouseup",()=>{ pan=false; vp.classList.remove("is-panning"); });
+  vp.addEventListener("click",e=>{ if(e.target===vp||e.target===canvas||e.target===wire||e.target===sizer) reset(); });
+
+  /* ---------- legend ---------- */
+  const LG=[["Client",C.client],["Edge / transport",C.net],["Identity",C.idn],
+            ["Application",C.app],["Content safety",C.safe],["Storage & keys",C.store],["Audit",C.audit]];
+  const lg=g("legend");
+  LG.forEach(([t,c])=>{ const d=document.createElement("div"); d.className="lg";
+    d.innerHTML=`<i style="background:${c}"></i>${t}`; lg.appendChild(d); });
+  [["request / data flow",false],["service call &amp; return",true]].forEach(([t,d])=>{
+    const e=document.createElement("div"); e.className="lg";
+    e.innerHTML=`<span class="ln${d?" d":""}"></span>${t}`; lg.appendChild(e); });
+  const zb=document.createElement("div"); zb.className="lg";
+  zb.innerHTML=`<span class="ln d" style="border-top-color:${C.store}"></span>dashed container = trust boundary`;
+  lg.appendChild(zb);
+
+  window.addEventListener("resize",fit);
+  fit(); setTimeout(fit,60); window.addEventListener("load",fit);
+})();
+</script>
