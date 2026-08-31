@@ -47,6 +47,34 @@ npm install --cache ./.npm-cache
 
 ---
 
+## Two views
+
+A tab switcher at the top toggles between them.
+
+**Overview** — the thirteen-call request path at architecture level. This is the view described below.
+
+**Deep dive** — the same path with the machinery underneath it. Fifteen components (adding **Zanzibar**, Google's authorization system, and **Fleet integrity**, the substrate everything runs on) across fourteen calls. Every stage marked `+` opens to reveal its real internals:
+
+| Stage | Opens into |
+| --- | --- |
+| Google Front End | ECMP fanout → Maglev (L4, consistent hashing) → GFE reverse proxy (TLS 1.3 / HTTP-2 / QUIC) → DoS filtering, health-check draining |
+| Identity | token validation, binding + short TTL, scope resolution, 2SV/passkey signals |
+| Zanzibar | relation tuples, check evaluation, zookie consistency token, Spanner-backed store |
+| Chunk + encrypt | chunker, per-chunk DEK, envelope encryption, integrity check |
+| Keystore | key hierarchy, HSM-backed root, rotation schedule, unwrap authorization |
+| Malware scanning | gVisor sandbox, signature + heuristics, Safe Browsing signals, verdict cache |
+| Colossus | curator, D servers, erasure coding, background scrubbing |
+| Metadata store | Spanner splits, TrueTime commits, chunk index, ACL pointer |
+| Fleet integrity | Titan chip, verified boot, binary provenance, job isolation |
+
+Opening a stage re-runs ELK rather than shuffling anything by hand — that is the whole reason this view is practical to build. Fully expanded it is 75 nodes and 56 internals.
+
+Component names come from Google's published work: [Maglev](https://research.google/pubs/maglev-a-fast-and-reliable-software-network-load-balancer/) (NSDI 2016), [Zanzibar](https://www.usenix.org/system/files/atc19-pang.pdf) (ATC 2019), the [infrastructure security design overview](https://cloud.google.com/docs/security/infrastructure/design), and the Cloud encryption docs.
+
+### Known limitation
+
+Expanding a stage does **not** auto-zoom to it. The deep graph is far too wide to fit the viewport and stay legible, so it opens at a fixed readable zoom (0.8) anchored at the start of the request, and you pan to explore — the minimap and zoom controls are there for navigation. I tried five approaches to auto-frame the opened stage (`fitBounds`, explicit `setCenter`, deferring past layout, capturing the instance via `onInit`, and delaying past React Flow's own fit); each was either clamped by `maxZoom` or silently overridden by React Flow's internal fit pass. Rather than ship code that does nothing, that logic was removed.
+
 ## What it does
 
 Thirteen numbered calls carry one file from a browser to encrypted chunks on disk, across four trust boundaries.

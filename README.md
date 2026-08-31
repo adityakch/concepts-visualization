@@ -7,7 +7,7 @@ Two interactive, self-contained explainers for learning security concepts visual
 | [`trust-map.html`](trust-map.html) | **The Trust Map** — a radial concept map of network security |
 | [`upload-anatomy.html`](upload-anatomy.html) | **Anatomy of an Upload** — a system-design map of a Google Drive upload |
 | [`index.html`](index.html) | Landing page linking to both |
-| [`reactflow-version/`](reactflow-version/) | The upload map rebuilt with **React Flow + ELK auto-layout** — needs Node, see its own [README](reactflow-version/README.md) |
+| [`reactflow-version/`](reactflow-version/) | The upload map rebuilt with **React Flow + ELK auto-layout**, with an **Overview** and a low-level **Deep dive** view — needs Node, see its own [README](reactflow-version/README.md) |
 
 The three HTML files at the root are dependency-free and open by double-click. The `reactflow-version/` folder is a separate Vite project demonstrating the same diagram built with a real graph library, where the layout is computed rather than hand-placed.
 
