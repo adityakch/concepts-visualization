@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { buildLayout } from "./layout.js";
+import { buildLayout, NODE_W, NODE_H, ZONE_PAD } from "./layout.js";
 import { nodeTypes } from "./nodes.jsx";
 import { edgeTypes } from "./edges.jsx";
 import { COMPONENTS, STEPS, ROLE, FOUNDATIONS } from "./data.js";
@@ -90,6 +90,52 @@ function Diagram() {
     }, 1900);
     return () => clearInterval(timer.current);
   }, [playing]);
+
+  /**
+   * Regrow every trust-boundary container around whatever it now holds.
+   *
+   * Children carry parent-relative positions, so when one is dragged past the
+   * top or left edge the container has to move *and* every sibling has to be
+   * counter-shifted by the same amount, otherwise the whole zone visually jumps.
+   */
+  const refitZones = useCallback((input) => {
+    const out = input.map((n) => ({ ...n, position: { ...n.position } }));
+    for (const zone of out.filter((n) => n.type === "zone")) {
+      const kids = out.filter((n) => n.parentId === zone.id);
+      if (kids.length === 0) continue;
+
+      const w = (k) => k.measured?.width ?? NODE_W;
+      const h = (k) => k.measured?.height ?? NODE_H;
+      const minX = Math.min(...kids.map((k) => k.position.x));
+      const minY = Math.min(...kids.map((k) => k.position.y));
+      const maxX = Math.max(...kids.map((k) => k.position.x + w(k)));
+      const maxY = Math.max(...kids.map((k) => k.position.y + h(k)));
+
+      const dx = minX - ZONE_PAD.left;
+      const dy = minY - ZONE_PAD.top;
+      if (dx !== 0 || dy !== 0) {
+        zone.position = { x: zone.position.x + dx, y: zone.position.y + dy };
+        for (const k of kids) {
+          k.position = { x: k.position.x - dx, y: k.position.y - dy };
+        }
+      }
+
+      zone.style = {
+        ...zone.style,
+        width: maxX - minX + ZONE_PAD.left + ZONE_PAD.right,
+        height: maxY - minY + ZONE_PAD.top + ZONE_PAD.bottom,
+      };
+    }
+    return out;
+  }, []);
+
+  const onNodeDragStop = useCallback(
+    (_, node) => {
+      if (node.type !== "component") return;
+      setNodes((ns) => refitZones(ns));
+    },
+    [refitZones, setNodes],
+  );
 
   const goto = useCallback((i) => {
     setPlaying(false);
@@ -275,6 +321,7 @@ function Diagram() {
               setStep(-1);
               setPicked(n.id);
             }}
+            onNodeDragStop={onNodeDragStop}
             onPaneClick={reset}
             minZoom={0.2}
             maxZoom={2}
@@ -310,8 +357,8 @@ function Diagram() {
                 🔒 badge naming what re-establishes trust.
               </p>
               <p>
-                Nodes are draggable here. Drag one and the edges reroute themselves, which is the
-                practical difference from the hand-placed SVG version.
+                Nodes are draggable, and the trust boundaries are not fixed frames — drag a
+                component past its container's edge and the container regrows around it.
               </p>
               <div className="found">
                 <span className="ft">Always on, underneath all of it</span>

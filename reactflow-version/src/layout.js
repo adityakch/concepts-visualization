@@ -3,8 +3,12 @@ import { ZONES, COMPONENTS, STEPS } from "./data.js";
 
 const elk = new ELK();
 
-const NODE_W = 168;
-const NODE_H = 74;
+export const NODE_W = 168;
+export const NODE_H = 74;
+
+// Shared with the drag-to-resize logic in App.jsx so a zone that regrows around
+// a dragged node keeps exactly the same padding ELK gave it.
+export const ZONE_PAD = { top: 82, right: 38, bottom: 52, left: 38 };
 
 // Hierarchical layered layout, left-to-right. `hierarchyHandling: INCLUDE_CHILDREN`
 // is what lets edges cross between trust-boundary containers while ELK still
@@ -13,8 +17,8 @@ const layoutOptions = {
   "elk.algorithm": "layered",
   "elk.direction": "RIGHT",
   "elk.hierarchyHandling": "INCLUDE_CHILDREN",
-  "elk.layered.spacing.nodeNodeBetweenLayers": "76",
-  "elk.spacing.nodeNode": "44",
+  "elk.layered.spacing.nodeNodeBetweenLayers": "116",
+  "elk.spacing.nodeNode": "56",
   // NOTE: edge *routing* is React Flow's job here — edges.jsx recomputes each
   // path with getSmoothStepPath between handles, so ELK's routed bend points are
   // not consumed. These spacing values therefore only influence node placement.
@@ -29,9 +33,9 @@ const zoneOptions = {
   // Generous top padding: the zone label lives up there, and each node's
   // NodeToolbar (threat chip) renders above the node itself — without the room
   // the two collide. Bottom padding leaves space for the rejection chip.
-  "elk.padding": "[top=82,left=28,bottom=52,right=28]",
+  "elk.padding": `[top=${ZONE_PAD.top},left=${ZONE_PAD.left},bottom=${ZONE_PAD.bottom},right=${ZONE_PAD.right}]`,
   // Wide enough that neighbouring nodes' toolbars don't collide either.
-  "elk.spacing.nodeNode": "88",
+  "elk.spacing.nodeNode": "104",
 };
 
 /**
@@ -85,7 +89,9 @@ export async function buildLayout() {
         // exactly what React Flow expects when parentId is set.
         position: { x: child.x ?? 0, y: child.y ?? 0 },
         parentId: zone.id,
-        extent: "parent",
+        // Deliberately NOT extent:"parent" — pinning children inside the
+        // container makes the zones feel cramped and unmovable. Instead the
+        // zone regrows around its children after a drag (see refitZones).
         data: { ...comp },
         zIndex: 1,
       });
