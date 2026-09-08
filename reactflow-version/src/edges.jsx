@@ -26,8 +26,10 @@ export function FlowEdge({
     borderRadius: 14,
   });
 
-  const target = data.targetRole ? ROLE[data.targetRole].color : "#2A3446";
-  const color = data.kind === "ret" ? ROLE.idn.color : target;
+  // data.color lets another dataset supply its own palette; data.retColor is
+  // the colour used for return/anchor edges in that palette.
+  const target = data.color ?? (data.targetRole ? ROLE[data.targetRole].color : "#2A3446");
+  const color = data.kind === "ret" ? (data.retColor ?? ROLE.idn.color) : target;
   const dash = data.kind === "call" ? "7 5" : data.kind === "ret" ? "3 4" : undefined;
 
   return (

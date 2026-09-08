@@ -244,6 +244,12 @@ h1 {
   outline: 2px solid var(--store);
   outline-offset: 2px;
 }
+.views-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 0 0.35rem;
+}
 
 /* ---------- component node ---------- */
 .cnode {

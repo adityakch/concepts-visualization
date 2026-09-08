@@ -16,7 +16,9 @@ export function ZoneNode({ data }) {
  * holds its internals, with the header pinned at the top.
  */
 export function ComponentNode({ data, selected }) {
-  const role = ROLE[data.role];
+  // data.color lets a different dataset (e.g. the PKI view) supply its own
+  // palette instead of the upload path's ROLE map.
+  const role = data.color ? { color: data.color } : ROLE[data.role];
   const open = data.expanded;
 
   return (

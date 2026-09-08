@@ -2,6 +2,33 @@ import { useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import App from "./App.jsx";
 import DeepApp from "./DeepApp.jsx";
+import PkiApp from "./PkiApp.jsx";
+
+function PkiPage() {
+  return (
+    <div className="app">
+      <header className="hero">
+        <div className="eyebrow">Public key infrastructure · the certificate lifecycle</div>
+        <h1>How a Certificate Earns Trust</h1>
+        <p>
+          One certificate from key generation to revocation — and the loop back to the start,
+          because PKI is a cycle, not a setup step. The two middle lanes run the same lifecycle
+          through a public CA and a private one, so you can see exactly where they diverge.
+        </p>
+      </header>
+      <ReactFlowProvider>
+        <PkiApp />
+      </ReactFlowProvider>
+      <footer>
+        <p className="note">
+          High-level view. Deep-dive sections — the ACME challenge exchange, chain path building,
+          CT log mechanics, key ceremony and HSM custody — are planned as drill-downs into these
+          same stages.
+        </p>
+      </footer>
+    </div>
+  );
+}
 
 function DeepPage() {
   return (
@@ -66,8 +93,18 @@ export default function Root() {
         >
           Deep dive
         </button>
+        <span className="views-sep" />
+        <button
+          className={view === "pki" ? "on" : ""}
+          aria-pressed={view === "pki"}
+          onClick={() => setView("pki")}
+        >
+          PKI lifecycle
+        </button>
       </nav>
-      {view === "overview" ? <App /> : <DeepPage />}
+      {view === "overview" && <App />}
+      {view === "deep" && <DeepPage />}
+      {view === "pki" && <PkiPage />}
     </>
   );
 }
